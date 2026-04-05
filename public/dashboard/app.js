@@ -121,41 +121,134 @@ async function fetchTable(type) {
     }
 }
 
+// -- UI Helpers --
+let currentModalCallback = null;
+
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    // SVG Icons
+    const icon = type === 'success' ? '✅' : (type === 'error' ? '❌' : 'ℹ️');
+    toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+    
+    container.appendChild(toast);
+    
+    // Trigger animation
+    setTimeout(() => toast.classList.add('show'), 10);
+    
+    // Auto remove
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+function showModal(title, message, useInput = false, onConfirm = null) {
+    document.getElementById('modal-title').innerText = title;
+    document.getElementById('modal-message').innerText = message;
+    
+    const inputEl = document.getElementById('modal-input');
+    if (useInput) {
+        inputEl.classList.remove('hidden');
+        inputEl.value = '';
+        inputEl.focus();
+    } else {
+        inputEl.classList.add('hidden');
+    }
+    
+    currentModalCallback = onConfirm;
+    document.getElementById('custom-modal').classList.remove('hidden');
+}
+
+function closeModal() {
+    document.getElementById('custom-modal').classList.add('hidden');
+    currentModalCallback = null;
+}
+
+document.getElementById('modal-confirm-btn').addEventListener('click', () => {
+    if (currentModalCallback) {
+        const val = document.getElementById('modal-input').value;
+        currentModalCallback(val);
+    }
+    closeModal();
+});
+
+// -- Event Bindings --
 function setupActionListeners() {
-    const actions = document.querySelectorAll('.action-item');
     // 1. Broadcast
-    actions[0].addEventListener('click', async () => {
-        const msg = prompt("Enter broadcast message for all FoxBlaze users:");
-        if (msg) {
-            alert("Broadcasting... Please wait.");
-            const res = await fetch('/api/admin/broadcast', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: msg })
-            });
-            const data = await res.json();
-            if (data.status === 'success') alert(`Message sent to ${data.sent} users.`);
-            else alert('Broadcast failed.');
-        }
+    const actions = document.querySelectorAll('.action-item');
+    actions[0].addEventListener('click', () => {
+        showModal("Broadcast Message", "Enter the message to send to all FoxBlaze users:", true, async (msg) => {
+            if (!msg || msg.trim() === '') return;
+            showToast("Broadcasting... Please wait.", "info");
+            try {
+                const res = await fetch('/api/admin/broadcast', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg })
+                });
+                const data = await res.json();
+                if (data.status === 'success') showToast(`Message sent to ${data.sent} users.`, "success");
+                else showToast('Broadcast failed.', "error");
+            } catch(e) {
+                showToast('Network error.', "error");
+            }
+        });
     });
 
-    // Dummy alerts for others
+    // Dummy alerts for others (Analytics, Settings, Fees, Terminals)
     const dummyFeatures = [1, 2, 3, 4];
     dummyFeatures.forEach(i => {
         actions[i].addEventListener('click', () => {
-            alert('This module is coming soon.');
+            showToast('Feature coming smoothly in v2 update.', 'info');
         });
     });
 
     // 6. Stop/Start Bot
-    actions[5].addEventListener('click', async () => {
-        if(confirm("Are you sure you want to toggle the Bot Engine Polling?")) {
-            const res = await fetch('/api/admin/system/toggle', { method: 'POST' });
-            const data = await res.json();
-            if(data.status === 'success') {
-                fetchMetrics(); // Refresh status immediately
+    actions[5].addEventListener('click', () => {
+        const isRunning = document.querySelector('.action-item:last-child span').innerText === 'Stop Bot';
+        const actionStr = isRunning ? "STOP" : "START";
+        showModal(`${actionStr} Telegram Bot`, `Are you sure you want to ${actionStr} the bot engine? Users will be affected.`, false, async () => {
+            try {
+                showToast("Processing request...", "info");
+                const res = await fetch('/api/admin/system/toggle', { method: 'POST' });
+                const data = await res.json();
+                if(data.status === 'success') {
+                    showToast(`Bot engine ${actionStr.toLowerCase()}ed successfully.`, "success");
+                    fetchMetrics(); // Refresh status immediately
+                }
+            } catch(e) {
+                showToast("Failed to toggle bot engine.", "error");
             }
-        }
+        });
+    });
+
+    // Top Header Navigation (Console, Wallets, Monitor, Track)
+    const navLinks = document.querySelectorAll('.nav-links a');
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            if (e.target.innerText === 'Console') return; // default page
+            e.preventDefault(); // Prevent href="#" jumping to top
+            navLinks.forEach(l => l.classList.remove('active'));
+            e.target.classList.add('active');
+            showToast(`Navigating to ${e.target.innerText} is under construction!`, 'info');
+            setTimeout(() => {
+                // Revert to Console active
+                e.target.classList.remove('active');
+                navLinks[0].classList.add('active');
+            }, 1500);
+        });
+    });
+
+    // Time Filters (1D, 7D, 30D, All)
+    const timeFilters = document.querySelectorAll('.time-filters span');
+    timeFilters.forEach(filter => {
+        filter.addEventListener('click', (e) => {
+            timeFilters.forEach(f => f.classList.remove('active'));
+            e.target.classList.add('active');
+            showToast(`Fetching ${e.target.innerText} data...`, 'info');
+        });
     });
 }
 

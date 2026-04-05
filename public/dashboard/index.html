@@ -185,6 +185,28 @@
 
         </main>
     </div>
+
+    <!-- Custom UI Components -->
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Custom Modal -->
+    <div id="custom-modal" class="modal-overlay hidden">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3 id="modal-title">Confirm Action</h3>
+                <span class="modal-close" onclick="closeModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p id="modal-message">Are you sure?</p>
+                <input type="text" id="modal-input" class="modal-input hidden" placeholder="Enter text..." autocomplete="off">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-cancel" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-confirm" id="modal-confirm-btn">Confirm</button>
+            </div>
+        </div>
+    </div>
     
     <script src="app.js"></script>
 </body>
