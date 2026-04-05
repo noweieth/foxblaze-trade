@@ -14,6 +14,8 @@ export interface TradeSessionData {
   sl?: number | null;
   price?: number; 
   inputMode?: 'size' | 'lev' | 'tp' | 'sl' | null;
+  promptMsgId?: number;
+  panelMsgId?: number;
 }
 
 export interface TradeSession {

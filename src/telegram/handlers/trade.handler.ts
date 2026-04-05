@@ -61,10 +61,10 @@ export class TradeHandler {
     };
 
     await this.sessionService.set(telegramId, { state: 'ORDER_SETUP_PANEL', data });
-    await this.renderOrderPanel(ctx, data, false);
+    await this.renderOrderPanel(ctx, data, telegramId, false);
   }
 
-  private async renderOrderPanel(ctx: Context, data: any, isEdit: boolean = true) {
+  private async renderOrderPanel(ctx: Context, data: any, telegramId: bigint, isEdit: boolean = true) {
     const summary = 
       `🦊 <b>FOXBLAZE ORDER SETUP</b> 🦊\n\n` +
       `🪙 Asset: <b>${data.asset}</b>\n` +
@@ -73,21 +73,29 @@ export class TradeHandler {
       `🚀 Leverage: <b>${data.leverage}x</b>\n` +
       `🎯 TP Price: <b>${data.tp || 'None'}</b>\n` +
       `🛡️ SL Price: <b>${data.sl || 'None'}</b>\n\n` +
-      (data.inputMode ? `👉 <i>Awaiting custom ${data.inputMode.toUpperCase()} input...</i>` : `⚡ <i>Adjust parameters or Confirm Trade.</i>`);
+      `⚡ <i>Adjust parameters or Confirm Trade.</i>`;
 
     const markup = buildOrderPanelKeyboard(data);
 
-    if (isEdit && ctx.callbackQuery?.message) {
+    if (isEdit) {
        try {
-          await ctx.editMessageText(summary, { parse_mode: 'HTML', reply_markup: markup });
+          if (data.panelMsgId) {
+             await ctx.api.editMessageText(ctx.chat!.id, data.panelMsgId, summary, { parse_mode: 'HTML', reply_markup: markup });
+          } else if (ctx.callbackQuery?.message) {
+             await ctx.editMessageText(summary, { parse_mode: 'HTML', reply_markup: markup });
+             data.panelMsgId = ctx.callbackQuery.message.message_id;
+          }
        } catch (err: any) {
           if (!err.message?.includes('message is not modified')) {
              this.logger.error(`Render Order Panel Error: ${err.message}`);
           }
        }
     } else {
-       await ctx.reply(summary, { parse_mode: 'HTML', reply_markup: markup });
+       const sent = await ctx.reply(summary, { parse_mode: 'HTML', reply_markup: markup });
+       data.panelMsgId = sent.message_id;
     }
+    
+    await this.sessionService.set(telegramId, { state: 'ORDER_SETUP_PANEL', data });
   }
 
   async handleTextMessage(ctx: Context, telegramId: bigint, text: string) {
@@ -114,25 +122,39 @@ export class TradeHandler {
           data.tp = null;
           data.sl = null;
           
-          await this.sessionService.set(telegramId, { state: 'ORDER_SETUP_PANEL', data });
-          await this.renderOrderPanel(ctx, data, false);
+          await this.renderOrderPanel(ctx, data, telegramId, false);
           return;
       }
 
       if (state === 'ORDER_SETUP_PANEL' && data.inputMode) {
           const val = parseFloat(text.trim());
-          if (isNaN(val) || val <= 0) {
-             await ctx.reply(`❌ Invalid number. Please enter a valid ${data.inputMode.toUpperCase()}.`);
-             return;
+          
+          // Xoá tin nhắn vừa nhập của User 
+          try { await ctx.deleteMessage(); } catch(e) {}
+          
+          // Xoá tin nhắn Prompt "Please enter..."
+          if (data.promptMsgId) {
+             try { await ctx.api.deleteMessage(ctx.chat!.id, data.promptMsgId); } catch(e) {}
+             data.promptMsgId = undefined;
           }
 
-          // Xoá tin nhắn thừa của User bớt rác (Ngoại trừ nhóm cấm bot delete)
-          try { await ctx.deleteMessage(); } catch(e) {}
+          if (isNaN(val) || val <= 0) {
+             const errPrompt = await ctx.reply(`❌ Invalid number. Please enter a valid ${data.inputMode.toUpperCase()}:`, {
+                reply_markup: { force_reply: true }
+             });
+             data.promptMsgId = errPrompt.message_id;
+             await this.sessionService.set(telegramId, { state: 'ORDER_SETUP_PANEL', data });
+             return;
+          }
 
           if (data.inputMode === 'size') data.sizeUsdc = val;
           if (data.inputMode === 'lev') {
              if (val > (data.maxLeverage || 20)) {
-                await ctx.reply(`❌ Max leverage is ${data.maxLeverage}x.`);
+                const errPrompt = await ctx.reply(`❌ Max leverage is ${data.maxLeverage}x. Enter again:`, {
+                   reply_markup: { force_reply: true }
+                });
+                data.promptMsgId = errPrompt.message_id;
+                await this.sessionService.set(telegramId, { state: 'ORDER_SETUP_PANEL', data });
                 return;
              }
              data.leverage = val;
@@ -140,9 +162,8 @@ export class TradeHandler {
           if (data.inputMode === 'tp') data.tp = val;
           if (data.inputMode === 'sl') data.sl = val;
 
-          data.inputMode = null; // Exit input mode
-          await this.sessionService.set(telegramId, { state: 'ORDER_SETUP_PANEL', data });
-          await this.renderOrderPanel(ctx, data, false); // Gửi Tin Nhắn Mới thay vì Edit vì User đã gửi chat chen ngang
+          data.inputMode = null; // Clean mode
+          await this.renderOrderPanel(ctx, data, telegramId, true); // Update panel
           return;
       }
     } catch (e: any) {
@@ -193,17 +214,43 @@ export class TradeHandler {
     
     // Custom Modes
     if (['set_size_custom', 'set_lev_custom', 'set_tp_custom', 'set_sl_custom'].includes(cbData)) {
-       data.inputMode = cbData.split('_')[1] as 'size' | 'lev' | 'tp' | 'sl';
+       const mode = cbData.split('_')[1] as 'size' | 'lev' | 'tp' | 'sl';
+       data.inputMode = mode;
+       
+       // Force Reply Prompt UI để user biết phải nhập chứ không phải lỗi đơ
+       const promptMsg = await ctx.reply(`👉 Please enter custom <b>${mode.toUpperCase()}</b> value in the chat:`, {
+          parse_mode: 'HTML',
+          reply_markup: { force_reply: true, selective: true }
+       });
+       
+       data.promptMsgId = promptMsg.message_id;
+       await this.sessionService.set(telegramId, { state: 'ORDER_SETUP_PANEL', data });
+       return true;
     }
 
     if (cbData === 'cancel_trade') {
        await this.sessionService.clear(telegramId);
-       await ctx.editMessageText(`❌ Trade setup cancelled by user.`);
+       if (data.promptMsgId) {
+           try { await ctx.api.deleteMessage(ctx.chat!.id, data.promptMsgId); } catch(e) {}
+       }
+       if (data.panelMsgId) {
+           try { await ctx.api.editMessageText(ctx.chat!.id, data.panelMsgId, `❌ Trade setup cancelled by user.`); } catch(e) {}
+       } else if (ctx.callbackQuery?.message) {
+           try { await ctx.editMessageText(`❌ Trade setup cancelled by user.`); } catch(e) {}
+       }
        return true;
     }
 
     if (cbData === 'confirm_trade') {
-       await ctx.editMessageText(`⏳ Verifying Risk Rules and executing on Hyperliquid...`);
+       const updateMsg = async (text: string) => {
+          if (data.panelMsgId) {
+             try { await ctx.api.editMessageText(ctx.chat!.id, data.panelMsgId, text, { parse_mode: 'HTML' }); } catch(e) {}
+          } else if (ctx.callbackQuery?.message) {
+             try { await ctx.editMessageText(text, { parse_mode: 'HTML' }); } catch(e) {}
+          }
+       };
+
+       await updateMsg(`⏳ Verifying Risk Rules and executing on Hyperliquid...`);
        const user = await this.userService.findByTelegramId(telegramId);
        if (user) {
           try {
@@ -216,17 +263,20 @@ export class TradeHandler {
                tp: data.tp?.toString(),
                sl: data.sl?.toString()
              });
-             await ctx.editMessageText(`✅ Trade executed dynamically via L1 bridge!`);
+             await updateMsg(`✅ Trade executed dynamically via L1 bridge!`);
           } catch (err: any) {
-             await ctx.editMessageText(`<b>RISK SYSTEM ALERT:</b>\n\n${err.message}`, { parse_mode: 'HTML' });
+             await updateMsg(`<b>RISK SYSTEM ALERT:</b>\n\n${err.message}`);
           }
+       }
+       
+       if (data.promptMsgId) {
+           try { await ctx.api.deleteMessage(ctx.chat!.id, data.promptMsgId); } catch(e) {}
        }
        await this.sessionService.clear(telegramId);
        return true;
     }
 
-    await this.sessionService.set(telegramId, { state: 'ORDER_SETUP_PANEL', data });
-    await this.renderOrderPanel(ctx, data, true);
+    await this.renderOrderPanel(ctx, data, telegramId, true);
     return true;
   }
 }
