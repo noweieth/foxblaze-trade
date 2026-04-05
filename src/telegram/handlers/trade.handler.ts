@@ -202,6 +202,10 @@ export class TradeHandler {
 
     const { data } = session;
 
+    if (ctx.callbackQuery?.message) {
+        data.panelMsgId = ctx.callbackQuery.message.message_id;
+    }
+
     // Presets
     if (cbData.startsWith('set_size_') && cbData !== 'set_size_custom') {
        data.sizeUsdc = parseInt(cbData.replace('set_size_', ''), 10);
