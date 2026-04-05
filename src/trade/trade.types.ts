@@ -15,6 +15,7 @@ export interface ClosePositionJob {
   currentSide: string; // 'long' or 'short'
   messageId?: number;
   chatId?: string | number;
+  isEmergency?: boolean;
 }
 
 export interface SetTpSlJob {

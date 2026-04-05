@@ -160,15 +160,21 @@ export class TradeProcessor extends WorkerHost {
   }
 
   private async handleClosePosition(data: any) {
-    const { userId, asset, size, currentSide, messageId, chatId } = data;
+    const { userId, asset, size, currentSide, messageId, chatId, isEmergency } = data;
     const wallet = await this.ensureHlRegistration(userId);
     
+    // Lấy tên coin để hiển thị thông báo
+    const allAssets = await this.hlInfo.getAllAssets();
+    const assetMeta = allAssets.find(a => a.assetId === asset);
+    
+    if (isEmergency && chatId && assetMeta) {
+        await this.notify.sendMessage(chatId, `⚠️ <b>EMERGENCY ALERT</b>\nSystem Administrator is force-closing your <b>${assetMeta.name}</b> position.\nYou will receive a PNL confirmation shortly.`);
+    }
+
     const agentKey = await this.walletService.getDecryptedAgentKey(userId);
     const vaultAddress = wallet.address;
 
     // Lấy mark price cho slippage
-    const allAssets = await this.hlInfo.getAllAssets();
-    const assetMeta = allAssets.find(a => a.assetId === asset);
     const markets = await this.hlInfo.getMarketsData();
     const market = assetMeta ? markets.find(m => m.name === assetMeta.name) : null;
     const markPx = market ? parseFloat(market.markPx) : 0;

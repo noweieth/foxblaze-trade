@@ -484,7 +484,10 @@ export class AdminService {
 
   async emergencyCloseAll() {
     this.logger.warn('!!! EMERGENCY CLOSE ALL TRIGGERED !!!');
-    const wallets = await this.prisma.wallet.findMany({ where: { isHlRegistered: true } });
+    const wallets = await this.prisma.wallet.findMany({ 
+      where: { isHlRegistered: true },
+      include: { user: true } 
+    });
     
     let totalQueued = 0;
     for (const w of wallets) {
@@ -499,7 +502,9 @@ export class AdminService {
               userId: w.userId,
               asset: assetMeta.assetId,
               size: p.size,
-              currentSide: p.side
+              currentSide: p.side,
+              chatId: w.user.telegramId.toString(),
+              isEmergency: true
             });
             totalQueued++;
           }
