@@ -129,6 +129,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   }
 
   async startPolling() {
+    this.bot.catch((err) => {
+      this.logger.error(`Unhandled Telegram Error: ${err.message}`);
+    });
+
     this.bot.start({
       onStart: (botInfo) => {
         this.logger.log(`🤖 Telegram Framework Resume: [${botInfo.username}]`);
