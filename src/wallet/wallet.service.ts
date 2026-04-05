@@ -159,9 +159,12 @@ export class WalletService implements OnModuleInit {
   }
 
   async createWalletAndOnboard(userId: number): Promise<Wallet | null> {
-    await this.createWallet(userId);
+    let wallet = await this.getWalletByUserId(userId);
+    if (!wallet) {
+      await this.createWallet(userId);
+      wallet = await this.getWalletByUserId(userId);
+    }
 
-    const wallet = await this.getWalletByUserId(userId);
     if (!wallet) return null;
 
     const userPrivateKey = this.encryption.decrypt(wallet.encryptedPrivateKey);

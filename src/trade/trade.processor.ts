@@ -64,14 +64,29 @@ export class TradeProcessor extends WorkerHost {
     }
   }
 
+  private async ensureHlRegistration(userId: number) {
+    let wallet = await this.walletService.getWalletByUserId(userId);
+    if (!wallet) throw new Error("Wallet not found in DB");
+    
+    if (!wallet.isHlRegistered) {
+      this.logger.log(`[Worker] Attempting Just-In-Time HL Activation for user ${userId}...`);
+      const privKey = await this.walletService.getDecryptedPrivateKey(userId);
+      const activated = await this.walletService.activateHlAccount(userId, privKey, wallet.agentAddress);
+      
+      if (!activated) {
+        throw new Error("Wallet not registered on HL\n(Make sure you have deposited at least $5 USDC on Arbitrum)");
+      }
+      wallet = await this.walletService.getWalletByUserId(userId);
+    }
+    return wallet!;
+  }
+
   private async handleOpenPosition(data: any) {
     this.logger.log(`[Debug] Data from Job: ${JSON.stringify(data)}`);
     const { userId, asset, isBuy, size, leverage, tp, sl } = data;
     
-    this.logger.log(`[Debug] Fetching wallet userId=${userId}`);
-    const wallet = await this.walletService.getWalletByUserId(userId);
-    if (!wallet) throw new Error("Wallet not found in DB");
-    if (!wallet.isHlRegistered) throw new Error("Wallet not registered on HL");
+    this.logger.log(`[Debug] Checking/Activating wallet userId=${userId}`);
+    const wallet = await this.ensureHlRegistration(userId);
     
     this.logger.log(`[Debug] Fetching agentKey`);
     const agentKey = await this.walletService.getDecryptedAgentKey(userId);
@@ -146,8 +161,7 @@ export class TradeProcessor extends WorkerHost {
 
   private async handleClosePosition(data: any) {
     const { userId, asset, size, currentSide, messageId, chatId } = data;
-    const wallet = await this.walletService.getWalletByUserId(userId);
-    if (!wallet || !wallet.isHlRegistered) throw new Error("Unregistered");
+    const wallet = await this.ensureHlRegistration(userId);
     
     const agentKey = await this.walletService.getDecryptedAgentKey(userId);
     const vaultAddress = wallet.address;
@@ -214,8 +228,7 @@ export class TradeProcessor extends WorkerHost {
 
   private async handleSetTpSl(data: any) {
     const { userId, asset, isBuy, size, tp, sl } = data;
-    const wallet = await this.walletService.getWalletByUserId(userId);
-    if (!wallet || !wallet.isHlRegistered) throw new Error("Unregistered");
+    const wallet = await this.ensureHlRegistration(userId);
 
     const agentKey = await this.walletService.getDecryptedAgentKey(userId);
     const vaultAddress = wallet.address;
@@ -235,8 +248,7 @@ export class TradeProcessor extends WorkerHost {
 
   private async handleCancelOrder(data: any) {
     const { userId, asset, orderId } = data;
-    const wallet = await this.walletService.getWalletByUserId(userId);
-    if (!wallet || !wallet.isHlRegistered) throw new Error("Unregistered");
+    const wallet = await this.ensureHlRegistration(userId);
 
     const agentKey = await this.walletService.getDecryptedAgentKey(userId);
     const vaultAddress = wallet.address;
