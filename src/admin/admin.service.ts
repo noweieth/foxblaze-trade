@@ -83,7 +83,7 @@ export class AdminService {
        });
        return wallets.map(w => ({
          id: w.address.substring(0,6) + '...' + w.address.slice(-4),
-         name: `Wallet ${w.userId}`,
+         name: w.user.username ? `@${w.user.username}` : w.user.firstName || `User ${w.userId}`,
          status: w.isHlRegistered ? 'Active' : 'Inactive',
          pnl: '$0.00',
          date: new Date(w.createdAt).toLocaleDateString()
@@ -92,11 +92,12 @@ export class AdminService {
        const history = await this.prisma.trade.findMany({
          take: 20,
          orderBy: { createdAt: 'desc' },
-         where: { status: 'CLOSED' }
+         where: { status: 'CLOSED' },
+         include: { user: true }
        });
        return history.map(t => ({
-         id: t.id.toString(),
-         name: `${t.side.toUpperCase()} ${t.size}x`,
+         id: `${t.side.toUpperCase()} ${t.size}x • ${t.asset}`,
+         name: t.user.username ? `@${t.user.username}` : t.user.firstName || `User ${t.userId}`,
          status: 'Closed',
          pnl: t.pnl ? (t.pnl > 0 ? `+$${t.pnl}` : `-$${Math.abs(t.pnl)}`) : '$0.00',
          date: new Date(t.createdAt).toLocaleDateString()
@@ -105,11 +106,12 @@ export class AdminService {
        const open = await this.prisma.trade.findMany({
          take: 20,
          orderBy: { createdAt: 'desc' },
-         where: { status: 'OPEN' }
+         where: { status: 'OPEN' },
+         include: { user: true }
        });
        return open.map(t => ({
-         id: t.id.toString(),
-         name: `${t.side.toUpperCase()} Active`,
+         id: `${t.side.toUpperCase()} Active • ${t.asset}`,
+         name: t.user.username ? `@${t.user.username}` : t.user.firstName || `User ${t.userId}`,
          status: 'Open',
          pnl: 'Unrealized',
          date: new Date(t.createdAt).toLocaleDateString()
