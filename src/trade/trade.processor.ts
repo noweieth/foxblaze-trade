@@ -7,6 +7,8 @@ import { HlInfoService } from '../hyperliquid/hl-info.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../telegram/notification.service';
 
+import { AppEvents } from '../common/events';
+
 @Processor('trade_queue', { concurrency: 5 })
 export class TradeProcessor extends WorkerHost {
   private readonly logger = new Logger(TradeProcessor.name);
@@ -22,38 +24,42 @@ export class TradeProcessor extends WorkerHost {
   }
 
   async process(job: Job<any, any, string>): Promise<any> {
-    this.logger.log(`[Worker] Bắt đầu xử lý Job ID: ${job.id} | Type: ${job.name}`);
+    this.logger.log(`[Worker] Starting Job ID: ${job.id} | Type: ${job.name}`);
     
     // Lấy telegramId để gửi thông báo
     const user = await this.prisma.user.findUnique({ where: { id: job.data.userId } });
     const chatId = user?.telegramId;
+    const wallet = await this.walletService.getWalletByUserId(job.data.userId);
 
     try {
       let result: any;
       switch (job.name) {
         case 'OPEN_POSITION':
           result = await this.handleOpenPosition(job.data);
-          if (chatId) await this.notify.sendMessage(chatId, `✅ <b>Lệnh đã khớp thành công!</b>\nVị thế đã được mở trên Hyperliquid L1.\nGõ /positions để xem chi tiết.`);
+          if (chatId && wallet) {
+             const prepend = `✅ <b>Trade executed successfully!</b>\nPosition opened on Hyperliquid L1.`;
+             AppEvents.emit('SEND_POSITIONS', chatId, wallet.address, prepend);
+          }
           return result;
         case 'CLOSE_POSITION':
-          result = await this.handleClosePosition(job.data);
-          if (chatId) await this.notify.sendMessage(chatId, `✅ <b>Đóng vị thế thành công!</b>\nGõ /balance để xem số dư.`);
-          return result;
+          await this.handleClosePosition(job.data);
+          // Do not emit generic SEND_POSITIONS here, as handleClosePosition emits a specific PNL card event
+          return;
         case 'SET_TP_SL':
           result = await this.handleSetTpSl(job.data);
-          if (chatId) await this.notify.sendMessage(chatId, `✅ <b>TP/SL đã được cài đặt!</b>\nGõ /orders để xem lệnh chờ.`);
+          if (chatId) await this.notify.sendMessage(chatId, `✅ <b>TP/SL placed successfully!</b>\nUse /positions to manage.`);
           return result;
         case 'CANCEL_ORDER':
           result = await this.handleCancelOrder(job.data);
-          if (chatId) await this.notify.sendMessage(chatId, `✅ <b>Lệnh đã được hủy thành công!</b>`);
+          if (chatId) await this.notify.sendMessage(chatId, `✅ <b>Order cancelled successfully!</b>`);
           return result;
         default:
           this.logger.error(`Unknown job type: ${job.name}`);
           throw new Error(`Unknown job type: ${job.name}`);
       }
     } catch (error: any) {
-      this.logger.error(`[Worker Error] Job ${job.id} thất bại: ${error.message}`);
-      if (chatId) await this.notify.sendMessage(chatId, `❌ <b>Lệnh thất bại!</b>\n${error.message}`);
+      this.logger.error(`[Worker Error] Job ${job.id} failed: ${error.message}`);
+      if (chatId) await this.notify.sendMessage(chatId, `❌ <b>Trade execution failed!</b>\n${error.message}`);
       throw error;
     }
   }
@@ -139,7 +145,7 @@ export class TradeProcessor extends WorkerHost {
   }
 
   private async handleClosePosition(data: any) {
-    const { userId, asset, size, currentSide } = data;
+    const { userId, asset, size, currentSide, messageId, chatId } = data;
     const wallet = await this.walletService.getWalletByUserId(userId);
     if (!wallet || !wallet.isHlRegistered) throw new Error("Unregistered");
     
@@ -154,11 +160,56 @@ export class TradeProcessor extends WorkerHost {
     const markPx = market ? parseFloat(market.markPx) : 0;
     
     this.logger.log(`[L1 Action] Đóng Market Position cho asset ${asset} tại markPx=${markPx}`);
+    // Đóng vị thế (đợi API confirm)
     await this.hlExchange.closePosition({ agentKey, vaultAddress, asset, size, currentSide, markPx });
     
     await this.hlInfo.invalidateUserCache(vaultAddress);
+
+    // Update Database so /history works
+    const openTrades = await this.prisma.trade.findMany({
+       where: { userId, asset: asset.toString(), status: 'OPEN' }
+    });
+
+    for (const t of openTrades) {
+       // PNL calculations
+       const sizeFloat = parseFloat(t.size.toString()) || parseFloat(size);
+       const entryPrice = t.entryPrice || 0;
+       
+       const uPnl = currentSide === 'long' 
+          ? (markPx - entryPrice) * sizeFloat
+          : (entryPrice - markPx) * sizeFloat;
+          
+       await this.prisma.trade.update({
+          where: { id: t.id },
+          data: {
+             status: 'CLOSED',
+             closePrice: markPx,
+             pnl: uPnl,
+             closedAt: new Date()
+          }
+       });
+
+       // Emit an event to draw the beautiful PNL card!
+       if (chatId && assetMeta) {
+          const leverage = t.leverage || 1;
+          const initialMargin = (sizeFloat * entryPrice) / leverage;
+          const roe = initialMargin > 0 ? (uPnl / initialMargin) * 100 : 0;
+
+          AppEvents.emit('POSITION_CLOSED_SUCCESS', {
+             chatId,
+             messageId,
+             asset: assetMeta.name,
+             side: currentSide,
+             leverage,
+             entry: entryPrice,
+             exit: markPx,
+             pnl: uPnl,
+             roe: roe
+          });
+       }
+    }
     
-    this.logger.log(`✅ Hoàn thành CLOSE_POSITION cho user ${userId}!`);
+    this.logger.log(`✅ Hoàn thành CLOSE_POSITION cho user ${userId}! Cập nhật ${openTrades.length} trades trong DB.`);
   }
 
   private async handleSetTpSl(data: any) {

@@ -19,10 +19,11 @@
                 <span class="brand-text">FOXBLAZE</span>
             </div>
             <nav class="nav-links">
-                <a href="#" class="active">Console</a>
-                <a href="#">Wallets</a>
-                <a href="#">Monitor</a>
-                <a href="#">Track</a>
+                <a href="#console" class="active">Console</a>
+                <a href="#wallets">Wallets</a>
+                <a href="#monitor">Monitor</a>
+                <a href="#analytics">Analytics</a>
+                <a href="#settings">Settings</a>
             </nav>
         </div>
         <div class="nav-right">
@@ -37,11 +38,12 @@
     <div class="layout">
         <main class="main-content">
             
+            <div id="page-console" class="page active">
             <div class="top-panels">
                 <!-- Left: Global Overview -->
                 <div class="panel overview-panel">
                     <div class="panel-header">
-                        <h2>Bot Network (3)</h2>
+                        <h2 id="metric-header">Bot Network (3)</h2>
                         <div class="time-filters">
                             <span class="active">1D</span>
                             <span>7D</span>
@@ -50,27 +52,22 @@
                         </div>
                     </div>
                     
-                    <div class="balance-section">
-                        <div class="balance-title">Total Active Users</div>
-                        <div class="balance-amount">
-                            <span class="symbol">👥</span>
-                            <span id="metric-users" class="amount">0</span>
-                            <span id="metric-wallets" class="usd-value">0 Wallets</span>
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <span class="kpi-label">Total Users</span>
+                            <span id="kpi-users" class="kpi-value">0</span>
                         </div>
-                        
-                        <div class="stats-grid">
-                            <div class="stat-row">
-                                <span class="stat-label">Total Volume</span>
-                                <span class="stat-value">$15,240.00</span>
-                                <span class="stat-label right">Realized PnL</span>
-                                <span id="metric-pnl" class="stat-value right pnl-green">+$0.00</span>
-                            </div>
-                            <div class="stat-row">
-                                <span class="stat-label">Total Trades</span>
-                                <span id="metric-open" class="stat-value pnl-green">+0</span>
-                                <span class="stat-label right">Unrealized PnL</span>
-                                <span class="stat-value right pnl-red">-$0.00</span>
-                            </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Active Bots</span>
+                            <span id="kpi-active-bots" class="kpi-value">0</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Total Trades</span>
+                            <span id="kpi-trades" class="kpi-value">0</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Win Rate</span>
+                            <span id="kpi-win-rate" class="kpi-value pnl-green">0%</span>
                         </div>
                     </div>
                 </div>
@@ -116,6 +113,11 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <!-- Chart Panel -->
+            <div class="panel chart-panel" style="margin-bottom: 20px;">
+                <canvas id="pnl-chart" style="width: 100%; height: 200px; display: block;"></canvas>
             </div>
 
             <!-- Bottom Data Table -->
@@ -183,6 +185,137 @@
                 </table>
             </div>
 
+            </div>
+
+            <!-- Wallets Page -->
+            <div id="page-wallets" class="page hidden">
+                <div class="panel">
+                    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2>User Management</h2>
+                        <input type="text" id="user-search" class="search-input" placeholder="Search username..." style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-base); color: var(--text-primary); width: 250px;">
+                    </div>
+                    <table class="data-table" id="wallets-table">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Telegram ID</th>
+                                <th>Wallet</th>
+                                <th>Status</th>
+                                <th>Trades</th>
+                                <th>Joined</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="wallets-tbody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                    <div id="wallets-pagination" class="pagination" style="display: flex; gap: 10px; margin-top: 15px; justify-content: center;"></div>
+                </div>
+            </div>
+
+            <!-- User Detail Slide Panel -->
+            <div id="user-detail-panel" class="slide-panel hidden">
+                <div class="panel-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3 id="detail-username">User Detail</h3>
+                    <button onclick="closeDetailPanel()" style="background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:1.2rem;">✕</button>
+                </div>
+                <div id="detail-content" style="margin-top: 20px; display: flex; flex-direction: column; gap: 15px;">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Monitor Page -->
+            <div id="page-monitor" class="page hidden">
+                <div class="panel">
+                    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h2>Live Positions Monitor</h2>
+                        <button class="btn btn-cancel" style="background-color: var(--red-pnl); color: white; border: none; font-weight: bold; box-shadow: 0 0 10px rgba(255, 77, 79, 0.5);" onclick="handleEmergencyCloseAll()">⚠️ Emergency Close All</button>
+                    </div>
+
+                    <div class="health-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px;">
+                        <div class="health-card">
+                            <span class="h-label">Bot Engine</span>
+                            <span id="health-bot" class="h-value">Loading...</span>
+                        </div>
+                        <div class="health-card">
+                            <span class="h-label">Redis Cache</span>
+                            <span id="health-redis" class="h-value">Loading...</span>
+                        </div>
+                        <div class="health-card">
+                            <span class="h-label">Uptime</span>
+                            <span id="health-uptime" class="h-value">Loading...</span>
+                        </div>
+                        <div class="health-card">
+                            <span class="h-label">Memory</span>
+                            <span id="health-memory" class="h-value">Loading...</span>
+                        </div>
+                    </div>
+
+                    <table class="data-table" id="monitor-table">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Asset</th>
+                                <th>Side</th>
+                                <th>Size</th>
+                                <th>Entry Price</th>
+                                <th>Unrealized PnL</th>
+                                <th>Leverage</th>
+                                <th>Margin Ratio</th>
+                                <th>Risk</th>
+                            </tr>
+                        </thead>
+                        <tbody id="monitor-tbody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Settings Page -->
+            <div id="page-settings" class="page hidden">
+                <div class="panel">
+                    <div class="page-header" style="margin-bottom: 25px;">
+                        <h2>Runtime Configuration</h2>
+                        <p style="color:var(--text-muted); font-size: 0.9rem;">Change bot risk limits without restarting. Overrides environment variables immediately.</p>
+                    </div>
+
+                    <div class="settings-grid">
+                        <div class="settings-section">
+                            <h3>Risk Limits</h3>
+                            <div class="setting-row">
+                                <label for="config-max-pos">Max Open Positions per User</label>
+                                <input type="number" id="config-max-pos" class="setting-input" style="width:100px;">
+                            </div>
+                            <div class="setting-row">
+                                <label for="config-max-margin">Max Margin Ratio (0.0 - 1.0)</label>
+                                <input type="number" step="0.01" id="config-max-margin" class="setting-input" style="width:100px;">
+                            </div>
+                            <div class="setting-row">
+                                <label for="config-max-usd">Max Position Size ($ USD)</label>
+                                <input type="number" id="config-max-usd" class="setting-input" style="width:150px;">
+                            </div>
+                            
+                            <button class="btn btn-confirm" style="margin-top: 15px;" onclick="saveRuntimeConfig()">Save Risk Config</button>
+                        </div>
+                        
+                        <div class="settings-section">
+                            <h3>Global Fees (Environment Variables)</h3>
+                            <p style="color:var(--text-muted); font-size: 0.85rem; margin-bottom: 15px;">These values are hardcoded in the server .env and cannot be changed at runtime.</p>
+                            <div class="setting-row">
+                                <label>Builder Fee Rate</label>
+                                <input type="text" id="config-builder-fee" class="setting-input" disabled style="width:100px; opacity:0.6;">
+                            </div>
+                            <div class="setting-row">
+                                <label>Referrer Fee Rate</label>
+                                <input type="text" id="config-referrer-fee" class="setting-input" disabled style="width:100px; opacity:0.6;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </main>
     </div>
 
@@ -208,6 +341,7 @@
         </div>
     </div>
     
+    <script src="components/chart.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

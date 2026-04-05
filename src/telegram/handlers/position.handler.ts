@@ -5,10 +5,15 @@ import { WalletService } from '../../wallet/wallet.service';
 import { TradeService } from '../../trade/trade.service';
 import { UserService } from '../../user/user.service';
 import { CardRenderer, BRAND } from '../card-renderer.service';
+import { loadImage } from 'canvas';
+import * as path from 'path';
+
+import { AppEvents } from '../../common/events';
 
 @Injectable()
 export class PositionHandler {
   private readonly logger = new Logger(PositionHandler.name);
+  private botInstance: Bot | null = null;
 
   constructor(
     private readonly hlInfo: HlInfoService,
@@ -19,40 +24,105 @@ export class PositionHandler {
   ) {}
 
   register(bot: Bot) {
+    this.botInstance = bot;
     bot.command('positions', async (ctx: Context) => this.handlePositions(ctx));
     bot.command('close', async (ctx: Context) => this.handleCloseCommand(ctx));
     bot.command('tp', async (ctx: Context) => this.handleSetTp(ctx));
     bot.command('sl', async (ctx: Context) => this.handleSetSl(ctx));
+
+    AppEvents.on('SEND_POSITIONS', async (chatId: string | number, walletAddress: string, prependText?: string) => {
+       try {
+          const payload = await this.buildPositionsPayload(walletAddress);
+          if (!payload) return; // No info
+          
+          let cap = `🦊 You have <b>${payload.count}</b> active positions. You can close them directly below, or use <code>/tp</code> and <code>/sl</code> to manage them.`;
+          if (prependText) {
+             cap = `${prependText}\n\n${cap}`;
+          }
+
+          await this.botInstance!.api.sendPhoto(chatId, new InputFile(payload.buffer), {
+             caption: cap,
+             parse_mode: 'HTML',
+             reply_markup: payload.kb
+          });
+       } catch (e: any) {
+          this.logger.error(`AppEvents SEND_POSITIONS error: ${e.message}`);
+       }
+    });
+
+    AppEvents.on('POSITION_CLOSED_SUCCESS', async (data: any) => {
+       try {
+           const { chatId, messageId, asset, side, leverage, entry, exit, pnl, roe } = data;
+           
+           // Generate the beautiful PNL card
+           const w = 1000;
+           const h = 1000;
+           const { canvas, ctx: ctx2d } = this.cardRenderer.createCard(w, h);
+
+           try {
+               const bgPath = path.join(process.cwd(), 'public', 'background_simple.svg');
+               const bgImage = await loadImage(bgPath);
+               ctx2d.drawImage(bgImage, 0, 0, w, h);
+           } catch (e) {
+               this.logger.error("Failed to load background SVG for PNL Card", e);
+           }
+
+           this.cardRenderer.drawClosedPositionCard(ctx2d, {
+               width: w,
+               height: h,
+               asset,
+               side: side === 'long' ? 'LONG' : 'SHORT',
+               leverage,
+               entry,
+               exit,
+               pnl,
+               roe
+           });
+
+           const buffer = this.cardRenderer.toBuffer(canvas);
+
+           // Try to delete the old "⏳ Sending request..." message
+           if (messageId && this.botInstance) {
+               try {
+                   await this.botInstance.api.deleteMessage(chatId, messageId);
+               } catch(e) {
+                   // If deleting fails (e.g. older than 48h or already deleted), ignore
+               }
+           }
+
+           // Send the PNL card
+           if (this.botInstance) {
+               const pnlSign = pnl >= 0 ? '+' : '';
+               const roeSign = roe >= 0 ? '+' : '';
+               await this.botInstance.api.sendPhoto(chatId, new InputFile(buffer), { 
+                   caption: `✅ <b>Position Closed</b>\n\n<b>${asset} ${side.toUpperCase()} ${leverage}x</b>\nRealized PNL: <b>${pnlSign}$${Math.abs(pnl).toFixed(2)}</b> (${roeSign}${Math.abs(roe).toFixed(2)}%)`,
+                   parse_mode: 'HTML'
+               });
+           }
+
+           // After sending the PNL card, we should also emit a background refresh of positions (without popup)
+           // But actually sending positions here might clutter the chat right after the beautiful card
+           // So we'll skip sending the full active positions list to keep it clean.
+       } catch (e: any) {
+           this.logger.error(`AppEvents POSITION_CLOSED_SUCCESS error: ${e.message}`);
+       }
+    });
   }
 
-  private async handlePositions(ctx: Context) {
-    if (!ctx.from) return;
-    const telegramId = BigInt(ctx.from.id);
-    const user = await this.userService.findByTelegramId(telegramId);
-    if (!user) return ctx.reply("❌ Please register first using /start.");
+  private async buildPositionsPayload(walletAddress: string) {
+      const [positions, openOrders] = await Promise.all([
+          this.hlInfo.getPositions(walletAddress),
+          this.hlInfo.getOpenOrders(walletAddress)
+      ]);
+      const openPositions = positions.filter(p => Math.abs(parseFloat(p.size)) > 0);
 
-    const wallet = await this.walletService.getWalletByUserId(user.id);
-    if (!wallet || !wallet.isHlRegistered) {
-       return ctx.reply("❌ Your wallet is not connected to Hyperliquid. Please type /start.");
-    }
-
-    const waitMsg = await ctx.reply("⏳ Fetching active positions...");
-
-    try {
-      const positions = await this.hlInfo.getPositions(wallet.address);
-
-      if (positions.length === 0) {
-         await ctx.api.editMessageText(ctx.chat!.id, waitMsg.message_id, "ℹ️ You currently have no active positions.");
-         return;
-      }
-
-      await ctx.api.deleteMessage(ctx.chat!.id, waitMsg.message_id);
+      if (openPositions.length === 0) return null;
 
       // Fetch candles for all positions concurrently (last 12 hours, 15m)
       const endTime = Date.now();
       const startTime = endTime - 12 * 60 * 60 * 1000;
       
-      const positionsData = await Promise.all(positions.map(async (p) => {
+      const positionsData = await Promise.all(openPositions.map(async (p) => {
         const uPnl = parseFloat(p.unrealizedPnl);
         const size = Math.abs(parseFloat(p.size));
         const entryPrice = parseFloat(p.entryPrice);
@@ -60,6 +130,11 @@ export class PositionHandler {
         const initialMargin = (size * entryPrice) / leverage;
         const roe = initialMargin > 0 ? (uPnl / initialMargin) : 0;
         
+        // Find TP / SL
+        // TP is a reduce-only order in the opposite direction (e.g. if position is LONG, TP is SHORT), with triggerCondition 'takeProfit' (or Takeprofit orderType)
+        const tpOrder = openOrders.find(o => o.asset === p.asset && o.orderType === 'Take Profit');
+        const slOrder = openOrders.find(o => o.asset === p.asset && o.orderType === 'Stop Loss');
+
         // Fetch historical
         const rawCandles = await this.hlInfo.getCandles(p.asset, '15m', startTime, endTime);
         const candles = rawCandles.map(c => parseFloat(c.c));
@@ -73,6 +148,10 @@ export class PositionHandler {
           leverage: leverage,
           sizeUsd: (size * entryPrice).toFixed(2),
           markPrice: candles[candles.length - 1]?.toFixed(4) || "0.00",
+          tpPrice: tpOrder?.price ? parseFloat(tpOrder.price).toFixed(4) : "None",
+          slPrice: slOrder?.price ? parseFloat(slOrder.price).toFixed(4) : "None",
+          tpFloat: tpOrder?.price ? parseFloat(tpOrder.price) : null,
+          slFloat: slOrder?.price ? parseFloat(slOrder.price) : null,
           candles: candles
         };
       }));
@@ -116,12 +195,16 @@ export class PositionHandler {
           uPnl: p.uPnl,
           roe: p.roe,
           entryPrice: p.entryPrice,
+          tpPrice: p.tpFloat,
+          slPrice: p.slFloat,
           candles: p.candles,
           metrics: [
-            { label: 'SIZE (USD)', val: `$${p.sizeUsd}` },
+            { label: 'SIZE', val: `$${p.sizeUsd}` },
             { label: 'ENTRY', val: `$${p.entryPrice}` },
-            { label: 'LEVERAGE', val: `${p.leverage}x` },
-            { label: 'MARK', val: `$${p.markPrice}` }
+            { label: 'MARK', val: `$${p.markPrice}` },
+            { label: 'LEV', val: `${p.leverage}x` },
+            { label: 'TP', val: p.tpPrice !== 'None' ? `$${p.tpPrice}` : 'None' },
+            { label: 'SL', val: p.slPrice !== 'None' ? `$${p.slPrice}` : 'None' }
           ]
         });
       }
@@ -132,21 +215,46 @@ export class PositionHandler {
 
       // Build inline buttons grouped
       const kb = new InlineKeyboard();
-      for (let i = 0; i < positions.length; i++) {
-        kb.text(`✖️ ${positions[i].asset}`, `pos_close_${positions[i].asset}`);
-        // Chỗ này chia 3 nút cắt lệnh 1 hàng cho k cồng kềnh
+      for (let i = 0; i < openPositions.length; i++) {
+        kb.text(`✖️ ${openPositions[i].asset}`, `pos_close_${openPositions[i].asset}`);
         if ((i + 1) % 3 === 0) kb.row(); 
       }
-      if (positions.length % 3 !== 0) kb.row();
+      if (openPositions.length % 3 !== 0) kb.row();
 
-      if (positions.length > 1) {
+      if (openPositions.length > 1) {
         kb.text("❌ CLOSE ALL", "pos_close_ALL");
       }
 
-      await ctx.replyWithPhoto(new InputFile(buffer), { 
-        caption: `🦊 You have <b>${positions.length}</b> active positions. You can close them directly below, or use <code>/tp</code> and <code>/sl</code> to manage them.`,
+      return { buffer, kb, count: openPositions.length };
+  }
+
+  private async handlePositions(ctx: Context) {
+    if (!ctx.from) return;
+    const telegramId = BigInt(ctx.from.id);
+    const user = await this.userService.findByTelegramId(telegramId);
+    if (!user) return ctx.reply("❌ Please register first using /start.");
+
+    const wallet = await this.walletService.getWalletByUserId(user.id);
+    if (!wallet || !wallet.isHlRegistered) {
+       return ctx.reply("❌ Your wallet is not connected to Hyperliquid. Please type /start.");
+    }
+
+    const waitMsg = await ctx.reply("⏳ Fetching active positions...");
+
+    try {
+      const payload = await this.buildPositionsPayload(wallet.address);
+
+      if (!payload) {
+         await ctx.api.editMessageText(ctx.chat!.id, waitMsg.message_id, "ℹ️ You currently have no active positions.");
+         return;
+      }
+
+      await ctx.api.deleteMessage(ctx.chat!.id, waitMsg.message_id);
+
+      await ctx.replyWithPhoto(new InputFile(payload.buffer), { 
+        caption: `🦊 You have <b>${payload.count}</b> active positions. You can close them directly below, or use <code>/tp</code> and <code>/sl</code> to manage them.`,
         parse_mode: 'HTML',
-        reply_markup: kb 
+        reply_markup: payload.kb 
       });
 
     } catch (e: any) {
@@ -231,13 +339,15 @@ export class PositionHandler {
     }
 
     // Đơn lẻ
-    await ctx.reply(`⏳ Closing active position for <b>${data.asset}</b> (Size: ${data.pos.size})...`, { parse_mode: 'HTML' });
+    const waitMsg = await ctx.reply(`⏳ Closing active position for <b>${data.asset}</b> (Size: ${data.pos.size})...`, { parse_mode: 'HTML' });
     
     await this.tradeService.queueClosePosition({
        userId: data.user.id,
        asset: data.meta.assetId,
        size: data.pos.size,
-       currentSide: data.pos.side
+       currentSide: data.pos.side,
+       messageId: waitMsg.message_id,
+       chatId: ctx.chat?.id,
     });
   }
 
@@ -335,7 +445,9 @@ export class PositionHandler {
                     userId: user.id,
                     asset: meta.assetId,
                     size: p.size,
-                    currentSide: p.side
+                    currentSide: p.side,
+                    messageId: ctx.callbackQuery?.message?.message_id,
+                    chatId: ctx.chat?.id,
                  });
              }
           }
@@ -360,7 +472,9 @@ export class PositionHandler {
          userId: user.id,
          asset: meta.assetId,
          size: pos.size,
-         currentSide: pos.side
+         currentSide: pos.side,
+         messageId: ctx.callbackQuery?.message?.message_id,
+         chatId: ctx.chat?.id,
       });
       
       return true;

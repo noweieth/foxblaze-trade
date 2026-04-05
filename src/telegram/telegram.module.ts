@@ -21,6 +21,7 @@ import { PnlHandler } from './handlers/pnl.handler';
 import { PrismaModule } from '../prisma/prisma.module';
 import { DepositModule } from '../deposit/deposit.module';
 import { CardRenderer } from './card-renderer.service';
+import { TestHandler } from './handlers/test.handler';
 
 @Module({
   imports: [ConfigModule, UserModule, WalletModule, HyperliquidModule, SessionModule, TradeModule, PrismaModule, DepositModule],
@@ -38,6 +39,7 @@ import { CardRenderer } from './card-renderer.service';
     HelpHandler,
     PnlHandler,
     CardRenderer,
+    TestHandler,
   ],
   exports: [TelegramService],
 })

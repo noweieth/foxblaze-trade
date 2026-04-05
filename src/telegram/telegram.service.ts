@@ -13,6 +13,7 @@ import { InfoHandler } from './handlers/info.handler';
 import { ChartHandler } from './handlers/chart.handler';
 import { HelpHandler } from './handlers/help.handler';
 import { PnlHandler } from './handlers/pnl.handler';
+import { TestHandler } from './handlers/test.handler';
 
 @Injectable()
 export class TelegramService implements OnModuleInit, OnModuleDestroy {
@@ -32,6 +33,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     private readonly chartHandler: ChartHandler,
     private readonly helpHandler: HelpHandler,
     private readonly pnlHandler: PnlHandler,
+    private readonly testHandler: TestHandler,
   ) {
     const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
     if (!token) {
@@ -43,21 +45,26 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit() {
-    this.bot.api.setMyCommands([
-      { command: 'start', description: 'Create wallet & initialize DEX' },
-      { command: 'deposit', description: 'How to deposit USDC (Arbitrum)' },
-      { command: 'balance', description: 'View L1 & Margin balance' },
-      { command: 'positions', description: 'Manage active positions' },
-      { command: 'orders', description: 'Manage pending orders' },
-      { command: 'history', description: 'View trade history' },
-      { command: 'long', description: 'Open LONG position' },
-      { command: 'short', description: 'Open SHORT position' },
-      { command: 'pnl', description: 'View PnL analysis chart' },
-      { command: 'help', description: 'View all commands & guides' },
-    ]);
-
     this.registerHandlers();
     
+    try {
+      await this.bot.api.setMyCommands([
+        { command: 'start', description: 'Create wallet & initialize DEX' },
+        { command: 'deposit', description: 'How to deposit USDC (Arbitrum)' },
+        { command: 'balance', description: 'View L1 & Margin balance' },
+        { command: 'long', description: 'Open LONG position' },
+        { command: 'short', description: 'Open SHORT position' },
+        { command: 'positions', description: 'Manage active positions' },
+        { command: 'orders', description: 'Manage pending orders' },
+        { command: 'history', description: 'View trade history' },
+        { command: 'pnl', description: 'View PnL analysis chart' },
+        { command: 'help', description: 'View all commands & guides' },
+      ]);
+      this.logger.log('Thành công set Telegram Bot Menu Commands');
+    } catch (e: any) {
+      this.logger.error(`Lỗi khi set commands: ${e.message}`);
+    }
+
     try {
       this.bot.start({
         onStart: (botInfo) => {
@@ -86,6 +93,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.chartHandler.register(this.bot);
     this.helpHandler.register(this.bot);
     this.pnlHandler.register(this.bot);
+    this.testHandler.register(this.bot);
 
     // 2. FSM Fallback Message Interceptor
     this.bot.on('message:text', async (ctx: Context) => {

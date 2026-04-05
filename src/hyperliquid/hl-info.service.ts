@@ -80,17 +80,31 @@ export class HlInfoService {
     });
   }
 
-  async getOpenOrders(addr: string): Promise<OpenOrder[]> {
-    return this.cachedQuery<OpenOrder[]>(`hl:orders:${addr}`, 5, async () => {
-      const orders = await this.infoClient.openOrders({ user: addr as `0x${string}` });
-      return orders.map(o => ({
-        asset: o.coin,
-        side: o.side === 'B' ? 'long' : 'short',
-        size: o.sz,
-        price: o.limitPx,
-        orderId: o.oid,
-        orderType: 'limit'
-      }));
+  async getOpenOrders(addr: string): Promise<any[]> {
+    return this.cachedQuery<any[]>(`hl:orders:${addr}`, 5, async () => {
+      // Use frontendOpenOrders to capture conditionals (TP/SL)
+      const data = await this.infoClient.frontendOpenOrders({ user: addr as `0x${string}` });
+      return data.map((o: any) => {
+        let mappedType = 'limit';
+        const rawType = (o.orderType || '').toLowerCase();
+        
+        if (rawType.includes('take profit')) {
+          mappedType = 'Take Profit';
+        } else if (rawType.includes('stop')) {
+          mappedType = 'Stop Loss';
+        }
+
+        return {
+          asset: o.coin,
+          side: o.side === 'B' ? 'long' : 'short',
+          size: o.sz,
+          price: o.triggerPx || o.limitPx, // For TP/SL, limitPx is the execution, triggerPx is the trigger
+          orderId: o.oid,
+          orderType: mappedType,
+          triggerCondition: o.triggerCondition,
+          isTrigger: !!o.isTrigger
+        };
+      });
     });
   }
 

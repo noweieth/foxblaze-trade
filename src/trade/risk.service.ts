@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { HlInfoService } from '../hyperliquid/hl-info.service';
+import { RedisService } from '../common/redis.service';
 
 @Injectable()
 export class RiskService {
@@ -9,7 +10,14 @@ export class RiskService {
   constructor(
     private readonly configService: ConfigService,
     private readonly hlInfo: HlInfoService,
+    private readonly redis: RedisService,
   ) {}
+
+  async getRuntimeConfig() {
+    const raw = await this.redis.client.get('runtime:config');
+    if (raw) return JSON.parse(raw);
+    return null;
+  }
 
   /**
    * Đánh giá rủi ro trước khi mở lệnh mới.
@@ -19,9 +27,11 @@ export class RiskService {
    * 3. Size của lệnh vượt quá MAX_POSITION_SIZE_USD
    */
   async checkSafety(walletAddress: string, targetSizeUsd: number, leverage: number): Promise<void> {
-    const maxPositions = this.configService.get<number>('MAX_OPEN_POSITIONS', 5);
-    const maxMarginRatio = this.configService.get<number>('MAX_MARGIN_RATIO', 0.85);
-    const maxPositionSizeUsd = this.configService.get<number>('MAX_POSITION_SIZE_USD', 5000);
+    const runtimeConfig = await this.getRuntimeConfig();
+    
+    const maxPositions = runtimeConfig?.MAX_OPEN_POSITIONS ?? this.configService.get<number>('MAX_OPEN_POSITIONS', 5);
+    const maxMarginRatio = runtimeConfig?.MAX_MARGIN_RATIO ?? this.configService.get<number>('MAX_MARGIN_RATIO', 0.85);
+    const maxPositionSizeUsd = runtimeConfig?.MAX_POSITION_SIZE_USD ?? this.configService.get<number>('MAX_POSITION_SIZE_USD', 5000);
 
     // 1. Kiểm tra kích thước lệnh cá nhân
     const realSize = targetSizeUsd * leverage; // Giá trị lệnh thực tế

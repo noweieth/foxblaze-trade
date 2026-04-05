@@ -13,6 +13,8 @@ export interface ClosePositionJob {
   asset: number;
   size: string;
   currentSide: string; // 'long' or 'short'
+  messageId?: number;
+  chatId?: string | number;
 }
 
 export interface SetTpSlJob {

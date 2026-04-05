@@ -7,12 +7,14 @@ import { WalletModule } from '../wallet/wallet.module';
 import { HyperliquidModule } from '../hyperliquid/hyperliquid.module';
 import { ConfigModule } from '@nestjs/config';
 import { NotificationService } from '../telegram/notification.service';
+import { CommonModule } from '../common/common.module';
 
 @Module({
   imports: [
     WalletModule,
     HyperliquidModule,
     ConfigModule,
+    CommonModule,
     BullModule.registerQueue({
       name: 'trade_queue',
       defaultJobOptions: {

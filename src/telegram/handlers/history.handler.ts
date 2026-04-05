@@ -3,6 +3,7 @@ import { Bot, Context, InputFile } from 'grammy';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UserService } from '../../user/user.service';
 import { CardRenderer, BRAND } from '../card-renderer.service';
+import { HlInfoService } from '../../hyperliquid/hl-info.service';
 
 @Injectable()
 export class HistoryHandler {
@@ -11,7 +12,8 @@ export class HistoryHandler {
   constructor(
     private readonly prisma: PrismaService,
     private readonly userService: UserService,
-    private readonly cardRenderer: CardRenderer
+    private readonly cardRenderer: CardRenderer,
+    private readonly hlInfo: HlInfoService
   ) {}
 
   register(bot: Bot) {
@@ -43,13 +45,21 @@ export class HistoryHandler {
 
       await ctx.api.deleteMessage(ctx.chat!.id, waitMsg.message_id);
 
+      const allAssets = await this.hlInfo.getAllAssets();
+
       const histories = records.map((h: any) => {
         const dateStr = h.createdAt.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
         // Lược bỏ giây cho đẹp, format YYYY-MM-DD HH:mm
-        const dateClean = dateStr.replace(/:\\d{2}$/, ''); 
+        const dateClean = dateStr.replace(/:\d{2}$/, ''); 
+        
+        let assetName = h.asset;
+        if (!isNaN(parseInt(h.asset))) {
+           const assetMeta = allAssets.find(a => a.assetId === parseInt(h.asset));
+           if (assetMeta) assetName = assetMeta.name;
+        }
 
         return {
-          asset: h.asset,
+          asset: assetName,
           side: h.side,
           leverage: h.leverage,
           status: h.status,
