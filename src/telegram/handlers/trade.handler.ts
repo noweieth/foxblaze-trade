@@ -4,7 +4,7 @@ import { UserService } from '../../user/user.service';
 import { SessionService } from '../../session/session.service';
 import { HlInfoService } from '../../hyperliquid/hl-info.service';
 import { TradeService } from '../../trade/trade.service';
-import { buildLeverageKeyboard, buildConfirmKeyboard } from '../keyboards/inline.keyboard';
+import { buildOrderPanelKeyboard } from '../keyboards/inline.keyboard';
 
 @Injectable()
 export class TradeHandler {
@@ -32,16 +32,15 @@ export class TradeHandler {
     if (!ctx.from) return;
     const telegramId = BigInt(ctx.from.id);
     
-    // Khởi tạo quy trình State Machine (FSM)
+    // Yêu cầu nhập Asset trước để làm cơ sở
     await this.sessionService.set(telegramId, {
-      state: 'AWAITING_ASSET',
+      state: 'WAITING_ASSET_INPUT',
       data: { side }
     });
 
     await ctx.reply(`🦊 Setting up a <b>${side.toUpperCase()}</b> position.\nEnter the Asset Ticker (e.g. <code>BTC</code>, <code>ETH</code>):`, { parse_mode: 'HTML' });
   }
 
-  // Phương thức Fast-track từ Inline Keyboard bấm ở Chart
   async fastTrackTrade(ctx: Context, telegramId: bigint, side: 'long' | 'short', assetName: string) {
     const assetMeta = await this.hlInfo.findAsset(assetName);
     
@@ -54,127 +53,97 @@ export class TradeHandler {
        side,
        asset: assetMeta.name,
        assetId: assetMeta.assetId,
-       maxLeverage: assetMeta.maxLeverage
+       maxLeverage: assetMeta.maxLeverage,
+       sizeUsdc: 10,       // Default Size
+       leverage: 10,       // Default Lev
+       tp: null,
+       sl: null
     };
 
-    // Đẩy thẳng vào Step AWAITING_SIZE
-    await this.sessionService.set(telegramId, { state: 'AWAITING_SIZE', data });
-    await ctx.reply(`✅ Asset: <b>${assetMeta.name}</b>\n⚖️ Side: <b>${side.toUpperCase()}</b>\n⚖️ Max Leverage: <b>${assetMeta.maxLeverage}x</b>\n\nEnter your Margin size in USDC (Min 1 USDC):`, { parse_mode: 'HTML' });
+    await this.sessionService.set(telegramId, { state: 'ORDER_SETUP_PANEL', data });
+    await this.renderOrderPanel(ctx, data, false);
   }
 
-  // Phương thức Intercept thông điệp Text thông thường của người đang bị kẹt trong FSM
+  private async renderOrderPanel(ctx: Context, data: any, isEdit: boolean = true) {
+    const summary = 
+      `🦊 <b>FOXBLAZE ORDER SETUP</b> 🦊\n\n` +
+      `🪙 Asset: <b>${data.asset}</b>\n` +
+      `📊 Side: <b>${data.side.toUpperCase()}</b>\n` +
+      `💰 Margin: <b>$${data.sizeUsdc}</b>\n` +
+      `🚀 Leverage: <b>${data.leverage}x</b>\n` +
+      `🎯 TP Price: <b>${data.tp || 'None'}</b>\n` +
+      `🛡️ SL Price: <b>${data.sl || 'None'}</b>\n\n` +
+      (data.inputMode ? `👉 <i>Awaiting custom ${data.inputMode.toUpperCase()} input...</i>` : `⚡ <i>Adjust parameters or Confirm Trade.</i>`);
+
+    const markup = buildOrderPanelKeyboard(data);
+
+    if (isEdit && ctx.callbackQuery?.message) {
+       await ctx.editMessageText(summary, { parse_mode: 'HTML', reply_markup: markup });
+    } else {
+       await ctx.reply(summary, { parse_mode: 'HTML', reply_markup: markup });
+    }
+  }
+
   async handleTextMessage(ctx: Context, telegramId: bigint, text: string) {
     const session = await this.sessionService.get(telegramId);
-    if (!session) return; // Không nằm trong chuỗi FSM
+    if (!session) return;
 
     const { state, data } = session;
 
     try {
-      switch (state) {
-        case 'AWAITING_ASSET': {
+      if (state === 'WAITING_ASSET_INPUT') {
           const assetName = text.trim().toUpperCase();
           const assetMeta = await this.hlInfo.findAsset(assetName);
           
           if (!assetMeta) {
-            await ctx.reply(`❌ Could not find asset <b>${assetName}</b> on Hyperliquid!\nPlease check and enter a valid ticker:`, { parse_mode: 'HTML' });
+            await ctx.reply(`❌ Asset <b>${assetName}</b> not found.\nEnter a valid ticker:`, { parse_mode: 'HTML' });
             return;
           }
 
           data.asset = assetMeta.name;
           data.assetId = assetMeta.assetId;
           data.maxLeverage = assetMeta.maxLeverage;
+          data.sizeUsdc = 10;
+          data.leverage = 10;
+          data.tp = null;
+          data.sl = null;
           
-          await this.sessionService.set(telegramId, { state: 'AWAITING_SIZE', data });
-          await ctx.reply(`✅ Asset: <b>${assetMeta.name}</b>\n⚖️ Max Leverage: <b>${assetMeta.maxLeverage}x</b>\n\nEnter your Margin size in USDC (Min 1 USDC):`, { parse_mode: 'HTML' });
-          break;
-        }
+          await this.sessionService.set(telegramId, { state: 'ORDER_SETUP_PANEL', data });
+          await this.renderOrderPanel(ctx, data, false);
+          return;
+      }
 
-        case 'AWAITING_SIZE': {
-          const sizeMs = parseFloat(text.trim());
-          if (isNaN(sizeMs) || sizeMs < 1) {
-            await ctx.reply(`❌ Invalid Size. Please enter a valid margin size (Min 1 USDC):`);
-            return;
+      if (state === 'ORDER_SETUP_PANEL' && data.inputMode) {
+          const val = parseFloat(text.trim());
+          if (isNaN(val) || val <= 0) {
+             await ctx.reply(`❌ Invalid number. Please enter a valid ${data.inputMode.toUpperCase()}.`);
+             return;
           }
-          
-          data.sizeUsdc = sizeMs;
-          
-          await this.sessionService.set(telegramId, { state: 'AWAITING_LEVERAGE', data });
-          await ctx.reply(
-            `💰 Margin Size: <b>$${sizeMs}</b>\n⚡ Select leverage via buttons below or type a custom number:`,
-            { 
-              parse_mode: 'HTML', 
-              reply_markup: buildLeverageKeyboard(data.maxLeverage || 20) 
-            }
-          );
-          break;
-        }
 
-        case 'AWAITING_LEVERAGE': {
-          const lev = parseInt(text.trim(), 10);
-          if (isNaN(lev) || lev < 1 || (data.maxLeverage && lev > data.maxLeverage)) {
-            await ctx.reply(`❌ Invalid leverage! Max leverage for this asset is ${data.maxLeverage}x.\nPlease enter leverage again:`);
-            return;
-          }
-          
-          data.leverage = lev;
-          
-          await this.sessionService.set(telegramId, { state: 'AWAITING_TP', data });
-          await ctx.reply(`🎯 Selected leverage: <b>${lev}x</b>\n\nEnter Take Profit price or type <code>/skip</code> to skip:`, { parse_mode: 'HTML' });
-          break;
-        }
+          // Xoá tin nhắn thừa của User bớt rác (Ngoại trừ nhóm cấm bot delete)
+          try { await ctx.deleteMessage(); } catch(e) {}
 
-        case 'AWAITING_TP': {
-          if (text.trim() !== '/skip') {
-             const tp = parseFloat(text.trim());
-             if (isNaN(tp) || tp <= 0) {
-               await ctx.reply(`❌ Take Profit must be a positive number. Try again or type <code>/skip</code>:`, { parse_mode: 'HTML' });
-               return;
+          if (data.inputMode === 'size') data.sizeUsdc = val;
+          if (data.inputMode === 'lev') {
+             if (val > (data.maxLeverage || 20)) {
+                await ctx.reply(`❌ Max leverage is ${data.maxLeverage}x.`);
+                return;
              }
-             data.tp = tp;
+             data.leverage = val;
           }
-          
-          await this.sessionService.set(telegramId, { state: 'AWAITING_SL', data });
-          await ctx.reply(`🛡️ Enter Stop Loss price or type <code>/skip</code> to skip:`, { parse_mode: 'HTML' });
-          break;
-        }
+          if (data.inputMode === 'tp') data.tp = val;
+          if (data.inputMode === 'sl') data.sl = val;
 
-        case 'AWAITING_SL': {
-          if (text.trim() !== '/skip') {
-             const sl = parseFloat(text.trim());
-             if (isNaN(sl) || sl <= 0) {
-               await ctx.reply(`❌ Stop Loss must be a positive number. Try again or type <code>/skip</code>:`, { parse_mode: 'HTML' });
-               return;
-             }
-             data.sl = sl;
-          }
-          
-          await this.sessionService.set(telegramId, { state: 'AWAITING_CONFIRM', data });
-          
-          const summary = 
-            `📝 <b>TRADE CONFIRMATION</b>\n\n` +
-            `🪙 Asset: <b>${data.asset}</b>\n` +
-            `📊 Side: <b>${data.side?.toUpperCase()}</b>\n` +
-            `💰 Margin: <b>$${data.sizeUsdc}</b>\n` +
-            `🚀 Leverage: <b>${data.leverage}x</b>\n` +
-            `🎯 TP Price: <b>${data.tp || 'None'}</b>\n` +
-            `🛡️ SL Price: <b>${data.sl || 'None'}</b>\n\n` +
-            `🔥 Approve this trade execution?`;
-
-          await ctx.reply(summary, { parse_mode: 'HTML', reply_markup: buildConfirmKeyboard() });
-          break;
-        }
-
-        case 'AWAITING_CONFIRM':
-          await ctx.reply(`⚠️ Please use the Inline buttons above to Confirm or Cancel the trade. Type /cancel to abort immediately.`);
-          break;
+          data.inputMode = null; // Exit input mode
+          await this.sessionService.set(telegramId, { state: 'ORDER_SETUP_PANEL', data });
+          await this.renderOrderPanel(ctx, data, false); // Gửi Tin Nhắn Mới thay vì Edit vì User đã gửi chat chen ngang
+          return;
       }
     } catch (e: any) {
-      await ctx.reply(`❌ Error syncing FSM State.`);
       this.logger.error(`FSM Text Error: ${e.message}`);
     }
   }
 
-  // Interceptor xử lý riêng mảng nút bấm của chu trình Trade
   async handleCallbackQuery(ctx: Context, telegramId: bigint, cbData: string) {
     if (cbData.startsWith('trade_long_')) {
        await this.sessionService.clear(telegramId);
@@ -191,66 +160,56 @@ export class TradeHandler {
     }
 
     const session = await this.sessionService.get(telegramId);
-    if (!session) return false;
+    if (!session || session.state !== 'ORDER_SETUP_PANEL') return false;
 
-    const { state, data } = session;
+    const { data } = session;
 
-    if (state === 'AWAITING_LEVERAGE' && cbData.startsWith('lev_')) {
-      if (cbData === 'lev_custom') {
-        await ctx.reply(`Please enter a custom Leverage (Max for this asset is ${data.maxLeverage}x):`);
-        return true;
-      }
-      
-      const lev = parseInt(cbData.replace('lev_', ''), 10);
-      data.leverage = lev;
-      await this.sessionService.set(telegramId, { state: 'AWAITING_TP', data });
-      
-      await ctx.editMessageText(
-        `💰 Margin Size: <b>$${data.sizeUsdc}</b>\n` +
-        `🎯 Selected Leverage: <b>${lev}x</b>\n\n` +
-        `Next, enter Take Profit price or type <code>/skip</code> to skip:`, 
-        { parse_mode: 'HTML' }
-      );
-      return true;
+    // Presets
+    if (cbData.startsWith('set_size_') && cbData !== 'set_size_custom') {
+       data.sizeUsdc = parseInt(cbData.replace('set_size_', ''), 10);
+       data.inputMode = null;
+    } else if (cbData.startsWith('set_lev_') && cbData !== 'set_lev_custom') {
+       const lev = parseInt(cbData.replace('set_lev_', ''), 10);
+       if (lev <= (data.maxLeverage || 20)) data.leverage = lev;
+       data.inputMode = null;
+    }
+    
+    // Custom Modes
+    if (['set_size_custom', 'set_lev_custom', 'set_tp_custom', 'set_sl_custom'].includes(cbData)) {
+       data.inputMode = cbData.split('_')[1] as 'size' | 'lev' | 'tp' | 'sl';
     }
 
-    if (state === 'AWAITING_CONFIRM') {
-      if (cbData === 'cancel_trade') {
-         await this.sessionService.clear(telegramId);
-         await ctx.editMessageText(`❌ Trade setup cancelled by user.`);
-         return true;
-      }
-
-      if (cbData === 'confirm_trade') {
-         await ctx.editMessageText(`⏳ Verifying Risk Rules and Account Health...`);
-         
-         const user = await this.userService.findByTelegramId(telegramId);
-         if (user) {
-            try {
-               // Queue lệnh qua TradeService Background (Sẽ ném lỗi nếu vi phạm Risk Rules)
-               await this.tradeService.queueOpenPosition({
-                 userId: user.id,
-                 asset: data.assetId!,
-                 isBuy: data.side === 'long',
-                 size: data.sizeUsdc!.toString(),
-                 leverage: data.leverage!,
-                 tp: data.tp?.toString(),
-                 sl: data.sl?.toString()
-               });
-               
-               await ctx.editMessageText(`✅ Trade approved! Queueing for on-chain execution via L1 bridge...`);
-            } catch (err: any) {
-               // Bắt trọn thông điệp lỗi Risk (bắt đầu bằng ký tự 🚫 hoặc ❌)
-               await ctx.editMessageText(`<b>RISK SYSTEM ALERT:</b>\n\n${err.message}`, { parse_mode: 'HTML' });
-            }
-         }
-         
-         // Thanh trừng session vì đã xử lý xong
-         await this.sessionService.clear(telegramId);
-         return true;
-      }
+    if (cbData === 'cancel_trade') {
+       await this.sessionService.clear(telegramId);
+       await ctx.editMessageText(`❌ Trade setup cancelled by user.`);
+       return true;
     }
 
-    return false; // Not part of FSM logic
+    if (cbData === 'confirm_trade') {
+       await ctx.editMessageText(`⏳ Verifying Risk Rules and executing on Hyperliquid...`);
+       const user = await this.userService.findByTelegramId(telegramId);
+       if (user) {
+          try {
+             await this.tradeService.queueOpenPosition({
+               userId: user.id,
+               asset: data.assetId!,
+               isBuy: data.side === 'long',
+               size: data.sizeUsdc!.toString(),
+               leverage: data.leverage!,
+               tp: data.tp?.toString(),
+               sl: data.sl?.toString()
+             });
+             await ctx.editMessageText(`✅ Trade executed dynamically via L1 bridge!`);
+          } catch (err: any) {
+             await ctx.editMessageText(`<b>RISK SYSTEM ALERT:</b>\n\n${err.message}`, { parse_mode: 'HTML' });
+          }
+       }
+       await this.sessionService.clear(telegramId);
+       return true;
+    }
+
+    await this.sessionService.set(telegramId, { state: 'ORDER_SETUP_PANEL', data });
+    await this.renderOrderPanel(ctx, data, true);
+    return true;
   }
 }

@@ -24,3 +24,33 @@ export function buildPositionKeyboard(asset: string, side: string): InlineKeyboa
     .text('🛡️ SL', `pos_sl_${asset}_${side}`)
     .text('❌ Close', `pos_close_${asset}_${side}`);
 }
+
+export function buildOrderPanelKeyboard(data: any): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  // Row 1: Size Presets
+  keyboard.text('💰 $10', 'set_size_10')
+          .text('💰 $50', 'set_size_50')
+          .text('💰 $100', 'set_size_100')
+          .text('✏️ Custom Size', 'set_size_custom').row();
+
+  // Row 2: Leverage Presets
+  keyboard.text('🚀 5x', 'set_lev_5')
+          .text('🚀 10x', 'set_lev_10');
+  if (data.maxLeverage && data.maxLeverage >= 20) {
+    keyboard.text('🚀 20x', 'set_lev_20');
+  }
+  keyboard.text('✏️ Custom Lev', 'set_lev_custom').row();
+
+  // Row 3: TP / SL Buttons
+  const tpText = data.tp ? `🎯 TP: ${data.tp}` : '🎯 Set TP';
+  const slText = data.sl ? `🛡️ SL: ${data.sl}` : '🛡️ Set SL';
+  keyboard.text(tpText, 'set_tp_custom')
+          .text(slText, 'set_sl_custom').row();
+
+  // Row 4: Confirm / Cancel
+  keyboard.text('❌ Cancel', 'cancel_trade')
+          .text('✅ CONFIRM TRADE', 'confirm_trade');
+
+  return keyboard;
+}

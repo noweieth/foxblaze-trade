@@ -1,11 +1,7 @@
 export type TradeState = 
   | 'IDLE' 
-  | 'AWAITING_ASSET' 
-  | 'AWAITING_SIZE' 
-  | 'AWAITING_LEVERAGE' 
-  | 'AWAITING_TP' 
-  | 'AWAITING_SL' 
-  | 'AWAITING_CONFIRM';
+  | 'WAITING_ASSET_INPUT' 
+  | 'ORDER_SETUP_PANEL';
 
 export interface TradeSessionData {
   side?: 'long' | 'short';
@@ -14,9 +10,10 @@ export interface TradeSessionData {
   maxLeverage?: number;
   sizeUsdc?: number;
   leverage?: number;
-  tp?: number;
-  sl?: number;
-  price?: number; // Only for limit orders if we support them later
+  tp?: number | null;
+  sl?: number | null;
+  price?: number; 
+  inputMode?: 'size' | 'lev' | 'tp' | 'sl' | null;
 }
 
 export interface TradeSession {
