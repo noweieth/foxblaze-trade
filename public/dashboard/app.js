@@ -639,6 +639,12 @@ async function initAnalyticsPage() {
             wrEl.innerText = `${data.winRate}%`;
             wrEl.className = winRate >= 50 ? 'kpi-value pnl-green' : 'kpi-value pnl-red';
 
+            // Helper
+            const formatMoney = (val) => {
+                const num = parseFloat(val);
+                return (num >= 0 ? '+$' : '-$') + Math.abs(num).toFixed(2);
+            };
+
             // Render Top Assets
             const tbodyAssets = document.getElementById('analytics-assets-tbody');
             tbodyAssets.innerHTML = '';
@@ -650,7 +656,7 @@ async function initAnalyticsPage() {
                     tr.innerHTML = `
                         <td><strong>${a.asset}</strong></td>
                         <td class="text-right">$${parseFloat(a.volume).toFixed(2)}</td>
-                        <td class="text-right ${a.pnl >= 0 ? 'pnl-green' : 'pnl-red'}">${a.pnl >= 0 ? '+' : ''}$${parseFloat(a.pnl).toFixed(2)}</td>
+                        <td class="text-right ${a.pnl >= 0 ? 'pnl-green' : 'pnl-red'}">${formatMoney(a.pnl)}</td>
                     `;
                     tbodyAssets.appendChild(tr);
                 });
@@ -668,7 +674,7 @@ async function initAnalyticsPage() {
                     tr.innerHTML = `
                         <td>${medal}${u.username}</td>
                         <td class="text-right">$${parseFloat(u.volume).toFixed(2)}</td>
-                        <td class="text-right ${u.pnl >= 0 ? 'pnl-green' : 'pnl-red'}">${u.pnl >= 0 ? '+' : ''}$${parseFloat(u.pnl).toFixed(2)}</td>
+                        <td class="text-right ${u.pnl >= 0 ? 'pnl-green' : 'pnl-red'}">${formatMoney(u.pnl)}</td>
                     `;
                     tbodyUsers.appendChild(tr);
                 });

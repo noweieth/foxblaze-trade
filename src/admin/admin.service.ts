@@ -140,11 +140,22 @@ export class AdminService {
     const estRevenue = totalVolume * builderFeeRate;
 
     // 2. Top Assets (Top 5 by Volume)
-    const topAssets = Object.keys(assetStats).map(a => ({
+    let topAssets = Object.keys(assetStats).map(a => ({
       asset: a,
       volume: assetStats[a].volume,
       pnl: assetStats[a].pnl
     })).sort((a, b) => b.volume - a.volume).slice(0, 5);
+
+    try {
+      const hlAssets = await this.hlInfo.getAllAssets();
+      topAssets = topAssets.map(item => {
+         if (/^\d+$/.test(item.asset)) {
+            const found = hlAssets.find(hl => hl.assetId === parseInt(item.asset));
+            if (found) return { ...item, asset: found.name };
+         }
+         return item;
+      });
+    } catch(e) {}
 
     // 3. Top Users (Top 10 by PNL)
     const topUsersRaw = Object.keys(userStats).map(id => ({

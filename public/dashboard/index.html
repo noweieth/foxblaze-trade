@@ -273,6 +273,64 @@
                 </div>
             </div>
 
+            <!-- Analytics Page -->
+            <div id="page-analytics" class="page hidden">
+                <div class="panel">
+                    <div class="page-header" style="margin-bottom: 25px;">
+                        <h2>Analytics & Revenue Tracking</h2>
+                        <p style="color:var(--text-muted); font-size: 0.9rem;">Track bot performance, estimated revenue, and top metrics.</p>
+                    </div>
+
+                    <div class="kpi-grid" style="margin-bottom: 30px;">
+                        <div class="kpi-card">
+                            <span class="kpi-label">Estimated Revenue</span>
+                            <span id="analytics-revenue" class="kpi-value pnl-green">$0.00</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Total Volume</span>
+                            <span id="analytics-volume" class="kpi-value">$0.00</span>
+                        </div>
+                        <div class="kpi-card">
+                            <span class="kpi-label">Global Win Rate</span>
+                            <span id="analytics-winrate" class="kpi-value">0%</span>
+                        </div>
+                    </div>
+
+                    <div class="settings-grid">
+                        <div class="settings-section">
+                            <h3>Top 5 Assets (By Volume)</h3>
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40%">Asset</th>
+                                        <th class="text-right" style="width: 30%">Volume</th>
+                                        <th class="text-right" style="width: 30%">PnL</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="analytics-assets-tbody">
+                                    <!-- Rendered dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="settings-section">
+                            <h3>Top 10 Users Leaderboard (By PnL)</h3>
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40%">User</th>
+                                        <th class="text-right" style="width: 30%">Volume</th>
+                                        <th class="text-right" style="width: 30%">PnL</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="analytics-users-tbody">
+                                    <!-- Rendered dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Settings Page -->
             <div id="page-settings" class="page hidden">
                 <div class="panel">
