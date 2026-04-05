@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from './config/config.module';
 import { ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
@@ -11,9 +11,17 @@ import { SessionModule } from './session/session.module';
 import { TradeModule } from './trade/trade.module';
 import { DepositModule } from './deposit/deposit.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
+import { AdminModule } from './admin/admin.module';
+import { AdminAuthMiddleware } from './admin/admin-auth.middleware';
 
 @Module({
   imports: [
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'public', 'dashboard'),
+      serveRoot: '/dashboard',
+    }),
     ConfigModule, 
     CommonModule, 
     PrismaModule, 
@@ -34,8 +42,15 @@ import { TelegramModule } from './telegram/telegram.module';
         },
       }),
     }),
+    AdminModule,
   ],
   controllers: [],
   providers: [],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(AdminAuthMiddleware)
+      .forRoutes('/dashboard', '/api/admin');
+  }
+}

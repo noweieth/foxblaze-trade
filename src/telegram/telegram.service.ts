@@ -123,4 +123,16 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   async sendMessage(chatId: number | string, text: string, options: any = { parse_mode: 'HTML' }) {
     await this.bot.api.sendMessage(chatId, text, options);
   }
+
+  async stopPolling() {
+    await this.bot.stop();
+  }
+
+  async startPolling() {
+    this.bot.start({
+      onStart: (botInfo) => {
+        this.logger.log(`🤖 Telegram Framework Resume: [${botInfo.username}]`);
+      }
+    });
+  }
 }

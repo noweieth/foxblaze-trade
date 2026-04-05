@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FoxBlaze Console</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Top Navbar -->
+    <header class="navbar">
+        <div class="nav-left">
+            <div class="brand">
+                <img src="logo_foxblaze.png" alt="FoxBlaze Logo" class="logo">
+                <span class="brand-text">FOXBLAZE</span>
+            </div>
+            <nav class="nav-links">
+                <a href="#" class="active">Console</a>
+                <a href="#">Wallets</a>
+                <a href="#">Monitor</a>
+                <a href="#">Track</a>
+            </nav>
+        </div>
+        <div class="nav-right">
+            <div class="server-status">
+                <div class="status-indicator"></div>
+                <span id="health-text" class="status-text">System Optimal</span>
+                <span id="last-updated" class="status-ping">12 MS | 120 FPS</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="layout">
+        <main class="main-content">
+            
+            <div class="top-panels">
+                <!-- Left: Global Overview -->
+                <div class="panel overview-panel">
+                    <div class="panel-header">
+                        <h2>Bot Network (3)</h2>
+                        <div class="time-filters">
+                            <span class="active">1D</span>
+                            <span>7D</span>
+                            <span>30D</span>
+                            <span>All</span>
+                        </div>
+                    </div>
+                    
+                    <div class="balance-section">
+                        <div class="balance-title">Total Active Users</div>
+                        <div class="balance-amount">
+                            <span class="symbol">👥</span>
+                            <span id="metric-users" class="amount">0</span>
+                            <span id="metric-wallets" class="usd-value">0 Wallets</span>
+                        </div>
+                        
+                        <div class="stats-grid">
+                            <div class="stat-row">
+                                <span class="stat-label">Total Volume</span>
+                                <span class="stat-value">$15,240.00</span>
+                                <span class="stat-label right">Realized PnL</span>
+                                <span id="metric-pnl" class="stat-value right pnl-green">+$0.00</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">Total Trades</span>
+                                <span id="metric-open" class="stat-value pnl-green">+0</span>
+                                <span class="stat-label right">Unrealized PnL</span>
+                                <span class="stat-value right pnl-red">-$0.00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Quick Actions -->
+                <div class="panel actions-panel">
+                    <div class="actions-grid">
+                        <div class="action-item">
+                            <div class="action-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+                            </div>
+                            <span>Broadcast</span>
+                        </div>
+                        <div class="action-item">
+                            <div class="action-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3"/></svg>
+                            </div>
+                            <span>Analytics</span>
+                        </div>
+                        <div class="action-item">
+                            <div class="action-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                            </div>
+                            <span>Settings</span>
+                        </div>
+                        <div class="action-item">
+                            <div class="action-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                            </div>
+                            <span>Fees</span>
+                        </div>
+                        <div class="action-item">
+                            <div class="action-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                            </div>
+                            <span>Terminals</span>
+                        </div>
+                        <div class="action-item">
+                            <div class="action-btn red-btn">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0M12 2v10"/></svg>
+                            </div>
+                            <span>Stop Bot</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Data Table -->
+            <div class="data-panel">
+                <div class="tabs">
+                    <span class="tab active">Recent Wallets</span>
+                    <span class="tab">History</span>
+                    <span class="tab">Active Orders</span>
+                </div>
+                
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th width="40"><input type="checkbox" class="cb"></th>
+                            <th width="300">Wallet / User</th>
+                            <th>Status</th>
+                            <th>Total PnL</th>
+                            <th style="text-align:right">Joined Data</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-tbody">
+                        <tr>
+                            <td><input type="checkbox" class="cb"></td>
+                            <td>
+                                <div class="wallet-cell">
+                                    <img src="logo_foxblaze.png" class="tiny-avatar">
+                                    <span class="wallet-name">Wallet 1</span>
+                                    <span class="wallet-address">0x12...9aBc</span>
+                                    <a href="#" class="icon-link"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg></a>
+                                </div>
+                            </td>
+                            <td><span class="pnl-green">Active</span></td>
+                            <td><span class="pnl-green">+1.42 ($150)</span></td>
+                            <td class="text-right">5m ago</td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" class="cb"></td>
+                            <td>
+                                <div class="wallet-cell">
+                                    <img src="logo_foxblaze.png" class="tiny-avatar">
+                                    <span class="wallet-name">Wallet 2</span>
+                                    <span class="wallet-address">0xFf...234A</span>
+                                    <a href="#" class="icon-link"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg></a>
+                                </div>
+                            </td>
+                            <td><span class="pnl-green">Active</span></td>
+                            <td><span class="pnl-red">-0.12 (-$5)</span></td>
+                            <td class="text-right">1h ago</td>
+                        </tr>
+                        <tr>
+                            <td><input type="checkbox" class="cb"></td>
+                            <td>
+                                <div class="wallet-cell">
+                                    <img src="logo_foxblaze.png" class="tiny-avatar">
+                                    <span class="wallet-name">Wallet 3</span>
+                                    <span class="wallet-address">0x7B...89CD</span>
+                                    <a href="#" class="icon-link"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg></a>
+                                </div>
+                            </td>
+                            <td><span class="pnl-muted">Inactive</span></td>
+                            <td><span class="pnl-muted">$0.00</span></td>
+                            <td class="text-right">2d ago</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </main>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
