@@ -78,7 +78,13 @@ export class TradeHandler {
     const markup = buildOrderPanelKeyboard(data);
 
     if (isEdit && ctx.callbackQuery?.message) {
-       await ctx.editMessageText(summary, { parse_mode: 'HTML', reply_markup: markup });
+       try {
+          await ctx.editMessageText(summary, { parse_mode: 'HTML', reply_markup: markup });
+       } catch (err: any) {
+          if (!err.message?.includes('message is not modified')) {
+             this.logger.error(`Render Order Panel Error: ${err.message}`);
+          }
+       }
     } else {
        await ctx.reply(summary, { parse_mode: 'HTML', reply_markup: markup });
     }
@@ -145,6 +151,9 @@ export class TradeHandler {
   }
 
   async handleCallbackQuery(ctx: Context, telegramId: bigint, cbData: string) {
+    // Luôn answer để client hết xoay icon Loading
+    try { await ctx.answerCallbackQuery(); } catch (e) {}
+
     if (cbData.startsWith('trade_long_')) {
        await this.sessionService.clear(telegramId);
        const asset = cbData.replace('trade_long_', '');
