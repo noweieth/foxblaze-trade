@@ -1,0 +1,77 @@
+// Configuration for Prisma schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         Int      @id @default(autoincrement())
+  telegramId BigInt   @unique
+  username   String?
+  firstName  String?
+  isActive   Boolean  @default(true)
+  wallet     Wallet?
+  trades     Trade[]
+  deposits   Deposit[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Wallet {
+  id                  Int      @id @default(autoincrement())
+  user                User     @relation(fields: [userId], references: [id])
+  userId              Int      @unique
+  derivationIndex     Int      @unique
+  address             String   @unique
+  encryptedPrivateKey String
+  agentAddress        String
+  encryptedAgentKey   String
+  isHlRegistered      Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Trade {
+  id              Int      @id @default(autoincrement())
+  user            User     @relation(fields: [userId], references: [id])
+  userId          Int
+  asset           String
+  assetId         Int?
+  side            String   // 'long' | 'short'
+  size            Float
+  entryPrice      Float?
+  closePrice      Float?
+  leverage        Int
+  takeProfitPrice Float?
+  stopLossPrice   Float?
+  status          String   @default("PENDING") // PENDING, OPEN, CLOSED, FAILED
+  pnl             Float?
+  hlOrderId       Int?
+  hlTpOrderId     Int?
+  hlSlOrderId     Int?
+  createdAt       DateTime @default(now())
+  closedAt        DateTime?
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}
+
+model Deposit {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id])
+  userId    Int
+  amount    Float
+  txHash    String   @unique
+  status    String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+}

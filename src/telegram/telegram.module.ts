@@ -1,0 +1,44 @@
+import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { TelegramService } from './telegram.service';
+import { UserModule } from '../user/user.module';
+import { WalletModule } from '../wallet/wallet.module';
+import { HyperliquidModule } from '../hyperliquid/hyperliquid.module';
+import { SessionModule } from '../session/session.module';
+import { TradeModule } from '../trade/trade.module';
+
+import { StartHandler } from './handlers/start.handler';
+import { DepositHandler } from './handlers/deposit.handler';
+import { BalanceHandler } from './handlers/balance.handler';
+import { TradeHandler } from './handlers/trade.handler';
+import { PositionHandler } from './handlers/position.handler';
+import { OrderHandler } from './handlers/order.handler';
+import { HistoryHandler } from './handlers/history.handler';
+import { InfoHandler } from './handlers/info.handler';
+import { ChartHandler } from './handlers/chart.handler';
+import { HelpHandler } from './handlers/help.handler';
+import { PnlHandler } from './handlers/pnl.handler';
+import { PrismaModule } from '../prisma/prisma.module';
+import { DepositModule } from '../deposit/deposit.module';
+import { CardRenderer } from './card-renderer.service';
+
+@Module({
+  imports: [ConfigModule, UserModule, WalletModule, HyperliquidModule, SessionModule, TradeModule, PrismaModule, DepositModule],
+  providers: [
+    TelegramService,
+    StartHandler,
+    DepositHandler,
+    BalanceHandler,
+    TradeHandler,
+    PositionHandler,
+    OrderHandler,
+    HistoryHandler,
+    InfoHandler,
+    ChartHandler,
+    HelpHandler,
+    PnlHandler,
+    CardRenderer,
+  ],
+  exports: [TelegramService],
+})
+export class TelegramModule {}

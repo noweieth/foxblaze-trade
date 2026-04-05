@@ -1,0 +1,199 @@
+import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Logger } from '@nestjs/common';
+import { Job } from 'bullmq';
+import { WalletService } from '../wallet/wallet.service';
+import { HlExchangeService } from '../hyperliquid/hl-exchange.service';
+import { HlInfoService } from '../hyperliquid/hl-info.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { NotificationService } from '../telegram/notification.service';
+
+@Processor('trade_queue', { concurrency: 5 })
+export class TradeProcessor extends WorkerHost {
+  private readonly logger = new Logger(TradeProcessor.name);
+
+  constructor(
+    private readonly walletService: WalletService,
+    private readonly hlExchange: HlExchangeService,
+    private readonly hlInfo: HlInfoService,
+    private readonly prisma: PrismaService,
+    private readonly notify: NotificationService,
+  ) {
+    super();
+  }
+
+  async process(job: Job<any, any, string>): Promise<any> {
+    this.logger.log(`[Worker] Bắt đầu xử lý Job ID: ${job.id} | Type: ${job.name}`);
+    
+    // Lấy telegramId để gửi thông báo
+    const user = await this.prisma.user.findUnique({ where: { id: job.data.userId } });
+    const chatId = user?.telegramId;
+
+    try {
+      let result: any;
+      switch (job.name) {
+        case 'OPEN_POSITION':
+          result = await this.handleOpenPosition(job.data);
+          if (chatId) await this.notify.sendMessage(chatId, `✅ <b>Lệnh đã khớp thành công!</b>\nVị thế đã được mở trên Hyperliquid L1.\nGõ /positions để xem chi tiết.`);
+          return result;
+        case 'CLOSE_POSITION':
+          result = await this.handleClosePosition(job.data);
+          if (chatId) await this.notify.sendMessage(chatId, `✅ <b>Đóng vị thế thành công!</b>\nGõ /balance để xem số dư.`);
+          return result;
+        case 'SET_TP_SL':
+          result = await this.handleSetTpSl(job.data);
+          if (chatId) await this.notify.sendMessage(chatId, `✅ <b>TP/SL đã được cài đặt!</b>\nGõ /orders để xem lệnh chờ.`);
+          return result;
+        case 'CANCEL_ORDER':
+          result = await this.handleCancelOrder(job.data);
+          if (chatId) await this.notify.sendMessage(chatId, `✅ <b>Lệnh đã được hủy thành công!</b>`);
+          return result;
+        default:
+          this.logger.error(`Unknown job type: ${job.name}`);
+          throw new Error(`Unknown job type: ${job.name}`);
+      }
+    } catch (error: any) {
+      this.logger.error(`[Worker Error] Job ${job.id} thất bại: ${error.message}`);
+      if (chatId) await this.notify.sendMessage(chatId, `❌ <b>Lệnh thất bại!</b>\n${error.message}`);
+      throw error;
+    }
+  }
+
+  private async handleOpenPosition(data: any) {
+    this.logger.log(`[Debug] Data from Job: ${JSON.stringify(data)}`);
+    const { userId, asset, isBuy, size, leverage, tp, sl } = data;
+    
+    this.logger.log(`[Debug] Fetching wallet userId=${userId}`);
+    const wallet = await this.walletService.getWalletByUserId(userId);
+    if (!wallet) throw new Error("Wallet not found in DB");
+    if (!wallet.isHlRegistered) throw new Error("Wallet not registered on HL");
+    
+    this.logger.log(`[Debug] Fetching agentKey`);
+    const agentKey = await this.walletService.getDecryptedAgentKey(userId);
+    const vaultAddress = wallet.address;
+
+    try {
+      // 1. Lấy thông tin giá hiện tại và params hiển thị số thập phân của coin
+      const allAssets = await this.hlInfo.getAllAssets();
+      const assetMeta = allAssets.find(a => a.assetId === asset);
+      if (!assetMeta) throw new Error(`Không tìm thấy Asset Meta cho ID ${asset}`);
+
+      const markets = await this.hlInfo.getMarketsData();
+      const market = markets.find(m => m.name === assetMeta.name);
+      if (!market) throw new Error(`Không tìm thấy giá Market cho ${assetMeta.name}`);
+
+      const markPx = parseFloat(market.markPx);
+      const sizeUsdc = parseFloat(size);
+      
+      // Tính toán Size theo Base Token: Size = (Ký quỹ * Đòn bẩy) / Giá
+      let baseSize = (sizeUsdc * leverage) / markPx;
+      
+      // Bo tròn chính xác theo szDecimals cố định của sàn
+      const baseSizeStr = baseSize.toFixed(assetMeta.szDecimals);
+
+      this.logger.log(`[L1 Action] Setting leverage ${leverage}x cho asset ${asset}`);
+      await this.hlExchange.setLeverage({ agentKey, vaultAddress, asset, leverage, isCross: true });
+
+      this.logger.log(`[L1 Action] Đặt Market Order ${asset} với baseSize=${baseSizeStr} (USDC=${sizeUsdc})`);
+      await this.hlExchange.placeMarketOrder({
+        agentKey,
+        vaultAddress,
+        asset,
+        isBuy,
+        size: baseSizeStr,
+        leverage,
+        markPx
+      });
+
+      if (tp) {
+        this.logger.log(`[L1 Action] Đặt lệnh Take Profit tại ${tp}`);
+        await this.hlExchange.placeTakeProfit({ agentKey, vaultAddress, asset, size, triggerPrice: tp, isBuy });
+      }
+
+      if (sl) {
+        this.logger.log(`[L1 Action] Đặt lệnh Stop Loss tại ${sl}`);
+        await this.hlExchange.placeStopLoss({ agentKey, vaultAddress, asset, size, triggerPrice: sl, isBuy });
+      }
+
+      await this.hlInfo.invalidateUserCache(vaultAddress);
+      
+      await this.prisma.trade.create({
+        data: {
+          userId,
+          status: 'OPEN',
+          asset: asset.toString(),
+          assetId: asset,
+          side: isBuy ? 'long' : 'short',
+          leverage: parseInt(leverage, 10) || 1,
+          size: parseFloat(baseSizeStr) || 0,
+          entryPrice: markPx, 
+          takeProfitPrice: tp ? parseFloat(tp) : null,
+          stopLossPrice: sl ? parseFloat(sl) : null,
+        }
+      });
+      
+      this.logger.log(`✅ Hoàn thành OPEN_POSITION cho user ${userId}!`);
+    } catch (e: any) {
+      this.logger.error(`Lỗi Open Position: ${e.message}`);
+      throw e;
+    }
+  }
+
+  private async handleClosePosition(data: any) {
+    const { userId, asset, size, currentSide } = data;
+    const wallet = await this.walletService.getWalletByUserId(userId);
+    if (!wallet || !wallet.isHlRegistered) throw new Error("Unregistered");
+    
+    const agentKey = await this.walletService.getDecryptedAgentKey(userId);
+    const vaultAddress = wallet.address;
+
+    // Lấy mark price cho slippage
+    const allAssets = await this.hlInfo.getAllAssets();
+    const assetMeta = allAssets.find(a => a.assetId === asset);
+    const markets = await this.hlInfo.getMarketsData();
+    const market = assetMeta ? markets.find(m => m.name === assetMeta.name) : null;
+    const markPx = market ? parseFloat(market.markPx) : 0;
+    
+    this.logger.log(`[L1 Action] Đóng Market Position cho asset ${asset} tại markPx=${markPx}`);
+    await this.hlExchange.closePosition({ agentKey, vaultAddress, asset, size, currentSide, markPx });
+    
+    await this.hlInfo.invalidateUserCache(vaultAddress);
+    
+    this.logger.log(`✅ Hoàn thành CLOSE_POSITION cho user ${userId}!`);
+  }
+
+  private async handleSetTpSl(data: any) {
+    const { userId, asset, isBuy, size, tp, sl } = data;
+    const wallet = await this.walletService.getWalletByUserId(userId);
+    if (!wallet || !wallet.isHlRegistered) throw new Error("Unregistered");
+
+    const agentKey = await this.walletService.getDecryptedAgentKey(userId);
+    const vaultAddress = wallet.address;
+
+    if (tp) {
+      this.logger.log(`[L1 Action] Đặt TP tại $${tp} cho asset ${asset}`);
+      await this.hlExchange.placeTakeProfit({ agentKey, vaultAddress, asset, size, triggerPrice: tp, isBuy });
+    }
+    if (sl) {
+      this.logger.log(`[L1 Action] Đặt SL tại $${sl} cho asset ${asset}`);
+      await this.hlExchange.placeStopLoss({ agentKey, vaultAddress, asset, size, triggerPrice: sl, isBuy });
+    }
+
+    await this.hlInfo.invalidateUserCache(vaultAddress);
+    this.logger.log(`✅ Hoàn thành SET_TP_SL cho user ${userId}!`);
+  }
+
+  private async handleCancelOrder(data: any) {
+    const { userId, asset, orderId } = data;
+    const wallet = await this.walletService.getWalletByUserId(userId);
+    if (!wallet || !wallet.isHlRegistered) throw new Error("Unregistered");
+
+    const agentKey = await this.walletService.getDecryptedAgentKey(userId);
+    const vaultAddress = wallet.address;
+
+    this.logger.log(`[L1 Action] Cancelling order #${orderId} cho asset ${asset}`);
+    await this.hlExchange.cancelOrder({ agentKey, vaultAddress, asset, orderId });
+
+    await this.hlInfo.invalidateUserCache(vaultAddress);
+    this.logger.log(`✅ Hoàn thành CANCEL_ORDER #${orderId} cho user ${userId}!`);
+  }
+}
