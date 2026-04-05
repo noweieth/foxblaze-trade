@@ -171,6 +171,14 @@ export class TradeHandler {
     const session = await this.sessionService.get(telegramId);
     if (!session || session.state !== 'ORDER_SETUP_PANEL') return false;
 
+    // Check if the callback belongs to the order panel
+    const orderPanelPrefixes = [
+      'set_size_', 'set_lev_', 'set_tp_custom', 'set_sl_custom', 'cancel_trade', 'confirm_trade'
+    ];
+    if (!orderPanelPrefixes.some(prefix => cbData.startsWith(prefix))) {
+       return false; // Phải nhả cbData ra cho các Handler khác xử lý (như PositionHandler)
+    }
+
     const { data } = session;
 
     // Presets
