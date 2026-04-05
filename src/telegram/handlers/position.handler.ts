@@ -308,20 +308,54 @@ export class PositionHandler {
       const wallet = await this.walletService.getWalletByUserId(user.id);
       if (!wallet) return true;
 
-      await ctx.editMessageText(`⏳ Sending request to close <b>${asset}</b> position...`, { parse_mode: 'HTML' });
+      const editMsg = async (text: string) => {
+          try {
+             if (ctx.callbackQuery?.message && 'photo' in ctx.callbackQuery.message) {
+                await ctx.editMessageCaption({ caption: text, parse_mode: 'HTML' });
+             } else {
+                await ctx.editMessageText(text, { parse_mode: 'HTML' });
+             }
+          } catch(e) {}
+      };
+
+      if (asset === 'ALL') {
+          await editMsg(`⏳ Sending request to close <b>ALL</b> positions...`);
+          const positions = await this.hlInfo.getPositions(wallet.address);
+          const openPositions = positions.filter(p => parseFloat(p.size) !== 0);
+          
+          if (openPositions.length === 0) {
+              await editMsg(`ℹ️ You have no active positions to close.`);
+              return true;
+          }
+
+          for (const p of openPositions) {
+             const meta = await this.hlInfo.findAsset(p.asset);
+             if (meta) {
+                 await this.tradeService.queueClosePosition({
+                    userId: user.id,
+                    asset: meta.assetId,
+                    size: p.size,
+                    currentSide: p.side
+                 });
+             }
+          }
+          await editMsg(`✅ Queued ${openPositions.length} Market close orders...`);
+          return true;
+      }
+
+      await editMsg(`⏳ Sending request to close <b>${asset}</b> position...`);
       
       const positions = await this.hlInfo.getPositions(wallet.address);
       const pos = positions.find(p => p.asset === asset);
       
       if (!pos) {
-         await ctx.editMessageText(`❌ Error: Position for <b>${asset}</b> not found.`, { parse_mode: 'HTML' });
+         await editMsg(`❌ Error: Position for <b>${asset}</b> not found.`);
          return true;
       }
       
       const meta = await this.hlInfo.findAsset(asset);
       if (!meta) return true;
 
-      // Đưa job Close Position vào BullMQ
       await this.tradeService.queueClosePosition({
          userId: user.id,
          asset: meta.assetId,
