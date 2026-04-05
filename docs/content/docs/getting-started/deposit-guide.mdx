@@ -1,0 +1,18 @@
+---
+title: Deposit Guide
+description: Funding your FoxBlaze wallet with USDC.
+---
+
+FoxBlaze automatically bridges USDC deposits from the Arbitrum network to Hyperliquid natively through L1 scanning.
+
+## How to Deposit
+
+1. **Copy your Wallet Address**: Use the `/start` command to get your wallet address.
+2. **Send USDC**: Send native USDC (not USDC.e) on the **Arbitrum One** network to your wallet address. Minimum deposit is 10 USDC.
+3. **Automatic Scanning**: The FoxBlaze bot continuously monitors your address via the `DepositService` scanning the Arbitrum RPC.
+
+Once the balance reaches > 1.0 USDC, the `AUTO_DEPOSIT` background queue is triggered. Your USDC will be gaslessly bridged to Hyperliquid.
+
+<Callout title="Why Arbitrum?" type="info">
+Hyperliquid's native L1 bridge operates via the Arbitrum network, allowing low fee and fast bridge transactions directly to the Perps exchange without requiring an EVM gas token.
+</Callout>

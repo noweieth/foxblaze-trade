@@ -1,0 +1,29 @@
+---
+title: Managing Positions
+description: How to view your active trades and realized PNL.
+---
+
+Monitoring your active trades is seamless with FoxBlaze's visual rendering engine.
+
+## Command: `/positions`
+
+Typing `/positions` will fetch your live open trades. Rather than text, the bot generates a dynamic, high-fidelity **PNL Visual Card**. This card contains:
+
+- Entry Price vs Mark Price
+- Leverage and Asset Size
+- Current TP/SL Parameters
+- Unrealized PnL (in USD)
+- Return on Equity (ROE%)
+- The last 12-hour 15-minute price sparkline for the asset
+
+## Closing Positions
+
+There are two ways to close an open position:
+1. **Interactive Button**: Beneath the PNL Card, click the `✖️ CLOSE` inline button for the specific asset.
+2. **Command**:
+   - `/close <ticker>`: E.g., `/close BTC` to market-close the specific position.
+   - `/close ALL`: Liquidate *all* active positions simultaneously via concurrent RPC calls.
+
+<Callout title="After Closing" type="success">
+When a position successfully closes, FoxBlaze will render your **Realized PNL Card** showing your final profit and ROE. You can easily share this natively to your Telegram channels.
+</Callout>

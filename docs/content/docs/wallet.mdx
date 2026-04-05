@@ -1,0 +1,29 @@
+---
+title: Wallet Architecture
+description: Understanding the FoxBlaze non-custodial cryptography model.
+---
+
+FoxBlaze is a **non-custodial** trading engine built entirely on the Hyperliquid L1 app-chain. To provide a seamless "gasless" trading experience within Telegram, it operates using **Agent Keys**.
+
+## How Your Funds Stay Safe
+
+When you use the `/start` command, the bot generates a standard **HD Wallet (BIP-39/BIP-44)** for you, derived from a secure master seed phrase on our servers.
+
+### 1. AES-256 Encryption
+The generated private key is never stored in plain text. It is encrypted simultaneously using AES-256 before being inserted into the database.
+
+### 2. The Agent Key System
+FoxBlaze does **not** trade using your main wallet's private signature. Instead, it generates a secondary **Agent Key** specific to the bot. 
+During the initial setup, a one-time transaction is signed by your main wallet (which requires the initial 10 USDC deposit on Arbitrum) to authorize this Agent Key. 
+
+From then on, the Bot only holds and uses the **Agent Key**, which possesses permission to execute trades on your behalf.
+- The Agent Key **can** open and close positions, and place conditional orders (TP/SL).
+- The Agent Key **cannot** withdraw your funds back to the L1 (Arbitrum) or external addresses.
+
+This ensures that even if the bot's temporary memory were compromised, your funds are permanently locked to your actual wallet address which only you control the recovery phrase to (if exported, *feature coming soon*).
+
+## High-Performance Execution
+
+By leveraging Hyperliquid API's Agent flow, FoxBlaze executes all trades directly on the Hyperliquid network:
+- **Zero Gas Fees**: No native EVM tokens (like ETH) are required to place orders.
+- **Microsecond Latency**: Orders are executed at centralized-exchange speeds while retaining decentralized, non-custodial settlement constraints.

@@ -1,0 +1,37 @@
+---
+title: First Trade
+description: Execute your first Perpetual Futures trade.
+---
+
+Once you have deposited, you can immediately begin trading using FoxBlaze's interactive UI.
+
+## The Trade Command
+
+1. Send `/long` or `/short` to the bot.
+2. The bot will prompt you for an asset ticker (e.g. `BTC`, `SOL`).
+3. An **Interactive Order Setup Panel** will appear.
+
+```text
+🦊 FOXBLAZE ORDER SETUP 🦊
+
+🪙 Asset: BTC
+📊 Side: LONG
+💰 Margin: $10
+🚀 Leverage: 10x
+🎯 TP Price: None
+🛡️ SL Price: None
+```
+
+## Setup Panel Configuration
+
+You can adjust the parameters using the inline keyboard.
+
+- **Size**: Adjust your position collateral.
+- **Leverage**: Change the leverage multiplier (capped at the asset's max leverage).
+- **Take Profit / Stop Loss**: Set auto-exit triggers. 
+
+When you click a custom button, the bot will ask you to reply with your desired value via Telegram's Force Reply modal.
+
+## Confirmation
+
+Once ready, click **Confirm Trade**. The background `TradeService` will verify your risk limits and place a market order directly on the Hyperliquid exchange.

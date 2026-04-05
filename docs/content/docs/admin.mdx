@@ -1,0 +1,67 @@
+---
+title: Admin & Deployment
+description: How to host and manage the FoxBlaze Bot infrastructure.
+---
+
+FoxBlaze is built dynamically on the NestJS framework and is designed to run efficiently on a Linux server using PM2.
+
+## Prerequisites
+
+Before deploying the bot, ensure your server has the following system dependencies installed:
+- **Node.js** (v20+ recommended)
+- **PostgreSQL** (Required for Prisma wallet & state persistence)
+- **Redis** (Required for BullMQ async task execution)
+- **PM2** (For background process management)
+
+## Application Setup
+
+1. **Clone the Repository** and install Node dependencies:
+```bash
+git clone https://github.com/noweieth/foxblaze-trade.git
+cd foxblaze-trade
+npm install
+```
+
+2. **Database Generation**: Initialize Prisma schema and apply database migrations.
+```bash
+npx prisma generate
+npx prisma db push
+```
+
+## Environment Configuration
+
+Create a `.env` file in the root directory. You must supply your Telegram Bot token and the Master Seed Phrase used to derive all user Agent wallets.
+
+```bash
+TELEGRAM_BOT_TOKEN=your_bot_token_from_botfather
+
+# PostgreSQL Connection
+DATABASE_URL="postgresql://user:pass@localhost:5432/foxblaze?schema=public"
+
+# Redis
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+
+# Cryptography (BIP-39 Master Key)
+MASTER_SEED_PHRASE="your twelve words secret phrase goes here"
+AES_SECRET_KEY="32_byte_aes_encryption_key_here"
+
+# Native EVM RPC
+ARBITRUM_RPC_URL="https://arb1.arbitrum.io/rpc"
+```
+
+<Callout title="Security Warning" type="error">
+The `MASTER_SEED_PHRASE` and `AES_SECRET_KEY` must be treated with the highest level of security. If these keys are leaked, the entire non-custodial structure is compromised.
+</Callout>
+
+## Deployment (PM2)
+
+Once configured, build and start the server using PM2:
+
+```bash
+npm run build
+pm2 start dist/main.js --name foxblaze
+pm2 save
+```
+
+Use `pm2 logs foxblaze` to monitor real-time execution logs, WebSocket listener stability, and BullMQ worker states.

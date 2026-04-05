@@ -1,0 +1,23 @@
+---
+title: 创建钱包
+description: 如何生成您的非托管交易钱包。
+---
+
+要开始，请与 FoxBlaze Telegram 机器人开始对话并输入 `/start`。
+
+## 入门流程
+
+1. **初始化**：机器人将识别您的 Telegram ID，并在 Arbitrum 网络上生成一个安全的 **HD 钱包 (BIP-39/44)**。
+2. **私钥**：您的私钥将安全生成并在存入数据库之前使用 AES-256 加密。FoxBlaze 通过 Hyperliquid 代理密钥结构以完全非托管的方式运行。我们永远无法提取您的资金。
+3. **钱包地址**：机器人将回复您的新存款地址。
+
+```text
+✅ Registration Successful!
+
+💳 Your Trading Wallet (Arbitrum)
+0x1234abcd5678...
+```
+
+<Callout title="注意" type="info">
+要解锁杠杆交易，需要在 Arbitrum 网络上首次存入至少 10 USDC。这是因为 Hyperliquid 对代理 API 授权的最低存款要求。
+</Callout>

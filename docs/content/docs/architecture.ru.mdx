@@ -1,0 +1,28 @@
+---
+title: Архитектура системы
+description: Техническая архитектура торгового бота FoxBlaze
+---
+
+FoxBlaze построен на современном высокопроизводительном стеке, предназначенном для криптотрейдинга с низкой задержкой.
+
+```mermaid
+graph TD
+    User([Пользователь Telegram]) -->|Команды| GrammY[Контроллер GrammY Bot]
+    GrammY --> TS[Торговый сервис]
+    GrammY --> WS[Сервис кошелька]
+    
+    WS --> Prisma[(База данных PostgreSQL)]
+    TS --> BullMQ[Очередь BullMQ Redis]
+    
+    BullMQ --> TP[Фоновая задача Trade Processor]
+    TP --> HL[Hyperliquid Exchange API L1]
+    
+    DS[Сервис депозитов] --> Arb[Сканирование Arbitrum RPC]
+    DS --> BullMQ
+```
+
+## Основные компоненты
+- **TypeScript & NestJS**: Модульная серверная архитектура.
+- **PostgreSQL & Prisma**: Реляционная база данных для сохранения состояния.
+- **BullMQ**: Надежная асинхронная очередь на базе Redis.
+- **Hyperliquid SDK**: Нативная интеграция через `@nktkas/hyperliquid` с L1-цепочкой Hyperliquid.

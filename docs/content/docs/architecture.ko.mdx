@@ -1,0 +1,28 @@
+---
+title: 시스템 아키텍처
+description: FoxBlaze 트레이딩 봇의 기술 아키텍처
+---
+
+FoxBlaze는 짧은 대기 시간의 암호화폐 거래를 위해 설계된 최신 고성능 스택을 기반으로 구축되었습니다.
+
+```mermaid
+graph TD
+    User([Telegram 사용자]) -->|명령| GrammY[GrammY Bot 컨트롤러]
+    GrammY --> TS[트레이드 서비스]
+    GrammY --> WS[지갑 서비스]
+    
+    WS --> Prisma[(PostgreSQL 데이터베이스)]
+    TS --> BullMQ[BullMQ Redis 큐]
+    
+    BullMQ --> TP[트레이드 프로세서 서브태스크]
+    TP --> HL[Hyperliquid Exchange API L1]
+    
+    DS[입금 서비스] --> Arb[Arbitrum RPC 스캔]
+    DS --> BullMQ
+```
+
+## 핵심 구성 요소
+- **TypeScript 및 NestJS**: 모듈식 백엔드 구조.
+- **PostgreSQL 및 Prisma**: 상태 유지를 위한 관계형 지속성 데이터베이스.
+- **BullMQ**: Redis 기반의 안정적인 비동기 실행 대기열.
+- **Hyperliquid SDK**: `@nktkas/hyperliquid`를 통한 Hyperliquid L1 기본 통합.

@@ -1,0 +1,23 @@
+---
+title: Create a Wallet
+description: How to generate your non-custodial trading wallet.
+---
+
+To begin, start a conversation with the FoxBlaze Telegram bot and type `/start`.
+
+## The Onboarding Flow
+
+1. **Initialization**: The bot will recognize your Telegram ID and generate a secure **HD Wallet (BIP-39/44)** on the Arbitrum network.
+2. **Private Keys**: Your private keys are generated securely and encrypted with AES-256 before being stored in the database. FoxBlaze operates entirely non-custodially via the Hyperliquid Agent Key structure. We never have access to withdraw your funds.
+3. **Wallet Address**: The bot will reply with your new deposit address.
+
+```text
+✅ Registration Successful!
+
+💳 Your Trading Wallet (Arbitrum)
+0x1234abcd5678...
+```
+
+<Callout title="Note" type="info">
+To unlock Margin Trading, a minimum first deposit of 10 USDC is required on the Arbitrum network. This is due to Hyperliquid's minimum deposit restriction for Agent API approval.
+</Callout>

@@ -1,0 +1,28 @@
+---
+title: 系统架构
+description: FoxBlaze 交易机器人的技术架构
+---
+
+FoxBlaze 构建于现代、高性能的技术栈之上，专为低延迟加密货币交易而设计。
+
+```mermaid
+graph TD
+    User([Telegram 用户]) -->|指令| GrammY[GrammY Bot 控制器]
+    GrammY --> TS[交易服务]
+    GrammY --> WS[钱包服务]
+    
+    WS --> Prisma[(PostgreSQL 数据库)]
+    TS --> BullMQ[BullMQ Redis 队列]
+    
+    BullMQ --> TP[交易处理后台任务]
+    TP --> HL[Hyperliquid Exchange API L1]
+    
+    DS[存款服务] --> Arb[Arbitrum RPC 扫描]
+    DS --> BullMQ
+```
+
+## 核心组件
+- **TypeScript & NestJS**: 模块化的后端结构。
+- **PostgreSQL & Prisma**: 用于状态持久化的关系型数据库。
+- **BullMQ**: 基于 Redis 的可靠异步执行队列。
+- **Hyperliquid SDK**: 通过 `@nktkas/hyperliquid` 与 Hyperliquid L1 应用链原生集成。

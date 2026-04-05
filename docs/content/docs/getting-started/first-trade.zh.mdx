@@ -1,0 +1,37 @@
+---
+title: 第一笔交易
+description: 执行您的第一笔永续期货交易。
+---
+
+存款后，您可以立即开始使用 FoxBlaze 的交互式 UI 进行交易。
+
+## 交易命令
+
+1. 向机器人发送 `/long` 或 `/short` 命令。
+2. 机器人将提示您输入资产代码（例如 `BTC`、`SOL`）。
+3. 将出现一个**交互式订单设置面板**。
+
+```text
+🦊 FOXBLAZE ORDER SETUP 🦊
+
+🪙 Asset: BTC
+📊 Side: LONG
+💰 Margin: $10
+🚀 Leverage: 10x
+🎯 TP Price: None
+🛡️ SL Price: None
+```
+
+## 设置面板配置
+
+您可以使用内联键盘调整参数。
+
+- **Size (规模)**：调整您的仓位保证金。
+- **Leverage (杠杆)**：更改杠杆乘数（上限为该资产的最大允许杠杆）。
+- **Take Profit / Stop Loss (止盈 / 止损)**：设置自动平仓触发器。
+
+当您点击自定义按钮时，机器人将通过 Telegram 的强制回复 (Force Reply) 模式要求您输入所需的值。
+
+## 确认交易
+
+准备就绪后，点击 **Confirm Trade (确认交易)**。后台 `TradeService` 将验证您的风险限制，并直接在 Hyperliquid 交易所下达市价单。

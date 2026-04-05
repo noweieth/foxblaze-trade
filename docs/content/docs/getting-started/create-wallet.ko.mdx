@@ -1,0 +1,23 @@
+---
+title: 지갑 만들기
+description: 비수탁 거래 지갑을 생성하는 방법.
+---
+
+시작하려면 FoxBlaze Telegram 봇과 대화를 시작하고 `/start`를 입력하세요.
+
+## 설정 흐름
+
+1. **초기화**: 봇이 귀하의 Telegram ID를 인식하고 Arbitrum 네트워크에서 안전한 **HD 지갑(BIP-39/44)**을 생성합니다.
+2. **개인 키**: 귀하의 개인 키는 안전하게 생성되고 데이터베이스에 저장되기 전에 암호화됩니다. 우리는 귀하의 자금에 절대 접근하지 않습니다.
+3. **지갑 주소**: 봇이 귀하의 새로운 입금 주소로 회신할 것입니다.
+
+```text
+✅ Registration Successful!
+
+💳 Your Trading Wallet (Arbitrum)
+0x1234abcd5678...
+```
+
+<Callout title="참고" type="info">
+마진 거래를 잠금 해제하려면 Arbitrum 네트워크에 최소 10 USDC의 첫 입금이 필요합니다. 이는 Hyperliquid 에이전트 승인을 위해서입니다.
+</Callout>

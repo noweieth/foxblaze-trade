@@ -1,0 +1,27 @@
+---
+title: Risk Management
+description: Configuring Take Profit, Stop Loss, and Safety limits.
+---
+
+FoxBlaze intercepts all trade requests and evaluates them against our internal `RiskService` before executing them on-chain.
+
+## Limits and Constraints
+Before any `OPEN_POSITION` job is sent to the BullMQ execution queue, your trade validates against two constraint systems:
+1. **Sufficient Margin**: Verifies you have enough collateral to open the position.
+2. **Leverage Limit**: Validates that your requested multiplier does not exceed the asset's specific `maxLeverage` allowed by Hyperliquid.
+
+## Take Profit & Stop Loss
+
+You can configure TP and SL directly during the Interactive Setup Panel before executing the trade. 
+
+### Post-Trade Configuration
+If the position is already open, you can dynamically modify the TP/SL limits using Telegram commands:
+
+- **Take Profit**: `/tp <ticker> <price>` (E.g. `/tp SOL 180`)
+- **Stop Loss**: `/sl <ticker> <price>` (E.g. `/sl SOL 120`)
+
+These commands will enqueue a `SET_TP_SL` background task which safely modifies or adds reduce-only trigger orders on the exchange.
+
+<Callout title="Execution Speed" type="info">
+TP and SL orders sit natively on the Hyperliquid orderbook. The FoxBlaze agent does not soft-evaluate prices locally via WebSockets, ensuring absolute minimal latency and preventing slippage during high-volatility events.
+</Callout>

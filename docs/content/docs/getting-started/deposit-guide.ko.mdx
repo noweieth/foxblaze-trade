@@ -1,0 +1,18 @@
+---
+title: 입금 가이드
+description: FoxBlaze 지갑에 USDC 충전하기.
+---
+
+FoxBlaze는 L1 스캔을 통해 Arbitrum 네트워크에서 Hyperliquid로 USDC 입금을 자동으로 브리지합니다.
+
+## 입금 방법
+
+1. **지갑 주소 복사**: `/start` 명령을 사용하여 주소를 확인합니다.
+2. **USDC 전송**: 네이티브 USDC를 귀하의 주소인 **Arbitrum One** 네트워크로 전송합니다. 최소 10 USDC입니다.
+3. **자동 스캔**: 봇은 `DepositService`를 통해 귀하의 주소를 지속적으로 모니터링합니다.
+
+잔액이 1.0 USDC를 초과하면 자동으로 L1 브리징이 작동합니다.
+
+<Callout title="왜 Arbitrum인가요?" type="info">
+기본 L1 브리지가 Arbitrum에서만 가스 없이 동작하기 때문입니다.
+</Callout>

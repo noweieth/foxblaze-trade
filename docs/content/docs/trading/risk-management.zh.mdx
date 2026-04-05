@@ -1,0 +1,27 @@
+---
+title: 风险管理
+description: 配置止盈、止损和安全限制。
+---
+
+FoxBlaze 拦截所有交易请求，并在将它们在链上执行之前根据我们内部的 `RiskService` 进行评估。
+
+## 限制与约束
+在将任何 `OPEN_POSITION` 任务发送到 BullMQ 执行队列之前，您的交易将根据两个约束系统进行验证：
+1. **足够的保证金**：验证您有足够的资金来开仓。
+2. **杠杆限制**：验证您请求的倍数不超过 Hyperliquid 允许的该资产的特定 `maxLeverage`（最大杠杆）。
+
+## 止盈与止损
+
+您可以直接在交互式设置面板执行交易之前配置 TP 和 SL。
+
+### 交易后配置
+如果仓位已经打开，您可以使用 Telegram 命令动态修改 TP/SL 限制：
+
+- **止盈 (Take Profit)**：`/tp <ticker> <price>`（例如 `/tp SOL 180`）
+- **止损 (Stop Loss)**：`/sl <ticker> <price>`（例如 `/sl SOL 120`）
+
+这些命令将在队列中安排一个 `SET_TP_SL` 后台任务，该任务可以安全地在交易所修改或添加 Reduce-only（只减仓）触发订单。
+
+<Callout title="执行速度" type="info">
+TP 和 SL 订单原生驻留在 Hyperliquid 订单簿上。FoxBlaze 代理不会通过 WebSockets 在本地软评估价格，这确保了绝对最小的延迟并防止高波动事件期间发生滑点拉扯。
+</Callout>

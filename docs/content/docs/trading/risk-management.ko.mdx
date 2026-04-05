@@ -1,0 +1,17 @@
+---
+title: 위험 관리
+description: TP, SL 제한 구성하기.
+---
+
+## 제약 사항
+
+`RiskService`는 증거금이 충분한지, 지정된 레버리지 제한을 넘지 않았는지 사전에 검증합니다.
+
+## 이익 실현 (TP) & 손절매 (SL)
+
+- `/tp <티커> <가격>` (예: `/tp SOL 180`)
+- `/sl <티кер> <가격>` (예: `/sl SOL 120`)
+
+<Callout title="오더북 속도" type="info">
+TP/SL 주문은 Hyperliquid 오더북에 배치되므로 높은 변동성에서도 슬리피지를 방지하고 매우 빠르게 체결됩니다.
+</Callout>

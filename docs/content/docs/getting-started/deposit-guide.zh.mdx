@@ -1,0 +1,18 @@
+---
+title: 存款指南
+description: 使用 USDC 为您的 FoxBlaze 钱包充值。
+---
+
+FoxBlaze 自动通过 L1 扫描将 USDC 存款从 Arbitrum 网络桥接到 Hyperliquid。
+
+## 如何存款
+
+1. **复制您的钱包地址**：使用 `/start` 命令获取您的钱包地址。
+2. **发送 USDC**：将原生 USDC（非 USDC.e）发送到您的钱包地址的 **Arbitrum One** 网络。最低存款为 10 USDC。
+3. **自动扫描**：FoxBlaze 机器人通过 `DepositService` 扫描 Arbitrum RPC 持续监控您的地址。
+
+一旦余额超过 1.0 USDC，将触发 `AUTO_DEPOSIT` 后台队列。您的 USDC 将无 Gas 桥接至 Hyperliquid。
+
+<Callout title="为什么选择 Arbitrum？" type="info">
+Hyperliquid 的原生 L1 桥接通过 Arbitrum 网络运行，允许直接进行低费用和快速的桥接交易到永续交易所，而无需 EVM Gas 代币。
+</Callout>
