@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { AdminService } from './admin.service';
+import { CreateSignalDto } from '../signal/signal.types';
 
 @Controller('api/admin')
 export class AdminController {
@@ -60,6 +61,28 @@ export class AdminController {
   @Post('users/:id/toggle-active')
   async toggleUserActive(@Param('id') id: string) {
     return this.adminService.toggleUserActive(parseInt(id));
+  }
+
+  @Post('users/:id/premium')
+  async toggleUserPremium(@Param('id') id: string) {
+    return this.adminService.toggleUserPremium(parseInt(id));
+  }
+
+  // --- SIGNALS ENDPOINTS --- //
+
+  @Get('signals')
+  async getSignals(@Query('limit') limit: string) {
+    return this.adminService.getSignalsHistory(parseInt(limit) || 20);
+  }
+
+  @Post('signals')
+  async createSignal(@Body() body: CreateSignalDto) {
+    return this.adminService.createSignal(body);
+  }
+
+  @Post('signals/:id/close')
+  async closeSignal(@Param('id') id: string) {
+    return this.adminService.closeSignal(parseInt(id));
   }
   
   @Get('positions/all')

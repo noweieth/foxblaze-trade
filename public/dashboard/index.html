@@ -23,6 +23,7 @@
                 <a href="#wallets">Wallets</a>
                 <a href="#monitor">Monitor</a>
                 <a href="#analytics">Analytics</a>
+                <a href="#signals">Signals</a>
                 <a href="#settings">Settings</a>
             </nav>
         </div>
@@ -328,6 +329,75 @@
                             </table>
                         </div>
                     </div>
+                </div>
+            </div>
+
+            <!-- Signals Page -->
+            <div id="page-signals" class="page hidden">
+                <div class="panel">
+                    <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                        <h2>Signal & CopyTrade Management</h2>
+                        <button class="btn btn-confirm" onclick="document.getElementById('create-signal-form').classList.toggle('hidden')">➕ Create Signal</button>
+                    </div>
+
+                    <!-- Create Signal Form (Hidden by default) -->
+                    <div id="create-signal-form" class="settings-grid hidden" style="background: var(--bg-surface); padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid var(--border-color);">
+                        <div class="settings-section" style="width: 100%;">
+                            <h3 style="margin-bottom: 15px;">Broadcast New Signal</h3>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                                <div class="setting-row">
+                                    <label>Asset (e.g. BTC)</label>
+                                    <input type="text" id="sig-asset" class="setting-input" placeholder="BTC">
+                                </div>
+                                <div class="setting-row">
+                                    <label>Side</label>
+                                    <select id="sig-side" class="setting-input">
+                                        <option value="long">LONG</option>
+                                        <option value="short">SHORT</option>
+                                    </select>
+                                </div>
+                                <div class="setting-row">
+                                    <label>Entry Price ($)</label>
+                                    <input type="number" id="sig-entry" class="setting-input" step="any">
+                                </div>
+                                <div class="setting-row">
+                                    <label>Take Profit ($)</label>
+                                    <input type="number" id="sig-tp" class="setting-input" step="any">
+                                </div>
+                                <div class="setting-row">
+                                    <label>Stop Loss ($)</label>
+                                    <input type="number" id="sig-sl" class="setting-input" step="any">
+                                </div>
+                                <div class="setting-row">
+                                    <label>Leverage (x)</label>
+                                    <input type="number" id="sig-leverage" class="setting-input" value="10">
+                                </div>
+                                <div class="setting-row" style="grid-column: span 2;">
+                                    <label>Note (Optional)</label>
+                                    <input type="text" id="sig-note" class="setting-input" placeholder="Signal logic/reasoning...">
+                                </div>
+                            </div>
+                            <button class="btn btn-confirm" style="margin-top: 20px; width: 100%;" onclick="submitSignal()">🚀 Broadcast to Premium Users</button>
+                        </div>
+                    </div>
+
+                    <!-- Signals Table -->
+                    <table class="data-table" id="signals-table">
+                        <thead>
+                            <tr>
+                                <th>Asset & Side</th>
+                                <th>Entry</th>
+                                <th>TP / SL</th>
+                                <th>Status</th>
+                                <th>Copiers</th>
+                                <th>Time</th>
+                                <th class="text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="signals-tbody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
 

@@ -27,6 +27,8 @@ export class HelpHandler {
         `/sl <i>ticker price</i> — Set Stop Loss\n\n` +
         `<b>💰 FUNDING</b>\n` +
         `/deposit — USDC (Arbitrum) deposit guide\n\n` +
+        `<b>⭐ PREMIUM</b>\n` +
+        `/premium — Activate & Manage VIP Features\n\n` +
         `⚡ <i>Powered by Hyperliquid L1 • Zero-Gas Deposit</i>`;
 
       await ctx.reply(msg, { parse_mode: 'HTML' });

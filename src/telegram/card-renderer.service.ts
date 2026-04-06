@@ -889,6 +889,131 @@ export class CardRenderer implements OnModuleInit {
     ctx.restore();
   }
 
+  // ─── PREMIUM CARD ───────────────────────────────────────────────
+  
+  drawPremiumCard(
+    ctx: CanvasRenderingContext2D,
+    opts: {
+      width: number;
+      height: number;
+      username: string;
+      autoCopy: boolean;
+      copySize: number;
+      isActivated: boolean;
+    }
+  ): void {
+    const w = opts.width;
+    const h = opts.height;
+    const color = opts.autoCopy ? BRAND.profitGreen : BRAND.lossRed;
+
+    ctx.save();
+
+    const PAD = 48;
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 28px "Arial"';
+    const brandTextW = ctx.measureText('FOXBLAZE').width;
+
+    let logoW = 0;
+    const logoH = 48;
+    const logoGap = 14;
+    if (this.logoImg) {
+      logoW = Math.round(logoH * (this.logoImg.width / this.logoImg.height));
+    }
+    const totalW = logoW + (logoW > 0 ? logoGap : 0) + brandTextW;
+    const startX = (w - totalW) / 2;
+
+    if (this.logoImg) {
+      ctx.drawImage(this.logoImg, startX, PAD, logoW, logoH);
+    }
+
+    ctx.textAlign = 'left';
+    ctx.fillStyle = BRAND.brandAmber;
+    ctx.font = 'bold 28px "Arial"';
+    const textX = startX + logoW + (logoW > 0 ? logoGap : 0);
+    ctx.fillText('FOXBLAZE', textX, PAD + 18);
+
+    ctx.fillStyle = BRAND.brandAmber; // Golden tone for premium
+    ctx.font = '12px "Arial"';
+    ctx.fillText('⭐   P R E M I U M   A C C O U N T', textX, PAD + 40);
+
+    // USERNAME Hero
+    const heroY = 220;
+    ctx.textAlign = 'center';
+    ctx.fillStyle = BRAND.textWhite;
+    ctx.font = '900 80px "Arial"';
+    ctx.fillText(opts.username.toUpperCase(), w / 2, heroY);
+
+    if (opts.isActivated) {
+      // STATUS BADGE
+      const roeY = 320;
+      const actText = `STATUS: ACTIVATED`;
+      ctx.font = 'bold 24px "Arial"';
+      const rw = ctx.measureText(actText).width + 60;
+      const rh = 48;
+      roundRect(ctx, w / 2 - rw / 2, roeY - rh / 2, rw, rh, rh / 2);
+      ctx.fillStyle = 'rgba(0, 230, 118, 0.12)';
+      ctx.fill();
+      ctx.fillStyle = BRAND.profitGreen;
+      ctx.fillText(actText, w / 2, roeY);
+
+      // AUTO COPY STATUS
+      const copyY = 440;
+      const acText = `AUTO-COPY: ${opts.autoCopy ? 'ENABLED' : 'DISABLED'}`;
+      ctx.font = 'bold 32px "Arial"';
+      const cw = ctx.measureText(acText).width + 64;
+      const chHeight = 64;
+      roundRect(ctx, w / 2 - cw / 2, copyY - chHeight / 2, cw, chHeight, 8);
+      ctx.fillStyle = opts.autoCopy ? 'rgba(0, 230, 118, 0.1)' : 'rgba(255, 68, 68, 0.1)';
+      ctx.fill();
+      ctx.strokeStyle = opts.autoCopy ? 'rgba(0, 230, 118, 0.3)' : 'rgba(255, 68, 68, 0.3)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.fillText(acText, w / 2, copyY);
+
+      // MARGIN INFO
+      const infoY = 560;
+      ctx.font = '24px "Arial"';
+      ctx.fillStyle = BRAND.textLight;
+      ctx.fillText(`Default Copy Margin: $${opts.copySize} USDC`, w / 2, infoY);
+      
+      const subInfoY = 620;
+      ctx.font = '16px "Arial"';
+      ctx.fillStyle = BRAND.textMuted;
+      ctx.fillText('⭐   VIP Signals   ·   🤖   Auto-Copy Trade   ·   🚀   High Risk Config', w / 2, subInfoY);
+
+    } else {
+      ctx.fillStyle = BRAND.textMuted;
+      ctx.font = '24px "Arial"';
+      ctx.fillText('ACCOUNT NOT ACTIVATED', w / 2, 400);
+    }
+
+    // FOOTER
+    ctx.font = '14px "Arial"';
+    ctx.fillStyle = BRAND.textDark;
+    ctx.fillText('foxblaze.trade · Complete Control', w / 2, h - 40);
+
+    ctx.restore();
+  }
+
+  async generatePremiumCardBuffer(opts: { username: string, autoCopy: boolean, copySize: number, isActivated: boolean }): Promise<Buffer> {
+    const w = 1000;
+    const h = 750;
+    const { canvas, ctx } = this.createCard(w, h);
+    
+    try {
+        const bgPath = path.join(process.cwd(), 'public', 'background_simple.svg');
+        const bgImage = await (global as any).loadedBgSvg || await loadImage(bgPath);
+        (global as any).loadedBgSvg = bgImage;
+        ctx.drawImage(bgImage, 0, 0, w, h);
+    } catch (e) {
+        this.logger.error("Failed to load background SVG for Premium Card", e);
+    }
+
+    this.drawPremiumCard(ctx, { width: w, height: h, ...opts });
+    return this.toBuffer(canvas);
+  }
+
   // ─── Utils ─────────────────────────────────────────────────────────
 
   toBuffer(canvas: Canvas): Buffer {

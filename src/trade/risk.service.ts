@@ -26,12 +26,22 @@ export class RiskService {
    * 2. Ký quỹ hiện tại + Ký quỹ dự kiến vượt quá MAX_MARGIN_RATIO * Equity
    * 3. Size của lệnh vượt quá MAX_POSITION_SIZE_USD
    */
-  async checkSafety(walletAddress: string, targetSizeUsd: number, leverage: number): Promise<void> {
+  async checkSafety(walletAddress: string, targetSizeUsd: number, leverage: number, isPremium: boolean = false): Promise<void> {
     const runtimeConfig = await this.getRuntimeConfig();
     
-    const maxPositions = runtimeConfig?.MAX_OPEN_POSITIONS ?? this.configService.get<number>('MAX_OPEN_POSITIONS', 5);
+    // Premium limits
+    const PREMIUM_MAX_POSITIONS = 10;
+    const PREMIUM_MAX_POSITION_SIZE_USD = 10000;
+
+    const maxPositions = isPremium 
+      ? PREMIUM_MAX_POSITIONS 
+      : (runtimeConfig?.MAX_OPEN_POSITIONS ?? this.configService.get<number>('MAX_OPEN_POSITIONS', 5));
+      
     const maxMarginRatio = runtimeConfig?.MAX_MARGIN_RATIO ?? this.configService.get<number>('MAX_MARGIN_RATIO', 0.85);
-    const maxPositionSizeUsd = runtimeConfig?.MAX_POSITION_SIZE_USD ?? this.configService.get<number>('MAX_POSITION_SIZE_USD', 5000);
+
+    const maxPositionSizeUsd = isPremium
+      ? PREMIUM_MAX_POSITION_SIZE_USD
+      : (runtimeConfig?.MAX_POSITION_SIZE_USD ?? this.configService.get<number>('MAX_POSITION_SIZE_USD', 5000));
 
     // 1. Kiểm tra kích thước lệnh cá nhân
     const realSize = targetSizeUsd * leverage; // Giá trị lệnh thực tế

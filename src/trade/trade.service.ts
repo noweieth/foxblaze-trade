@@ -4,6 +4,7 @@ import { Queue } from 'bullmq';
 import { OpenPositionJob, ClosePositionJob, SetTpSlJob, CancelOrderJob } from './trade.types';
 import { RiskService } from './risk.service';
 import { WalletService } from '../wallet/wallet.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class TradeService {
@@ -12,15 +13,19 @@ export class TradeService {
   constructor(
     @InjectQueue('trade_queue') private readonly tradeQueue: Queue,
     private readonly riskService: RiskService,
-    private readonly walletService: WalletService
+    private readonly walletService: WalletService,
+    private readonly prisma: PrismaService
   ) {}
 
   async queueOpenPosition(params: OpenPositionJob) {
     const wallet = await this.walletService.getWalletByUserId(params.userId);
     if (!wallet) throw new InternalServerErrorException('Phiên giao dịch thất bại: Không tìm thấy ví người dùng!');
 
+    const user = await this.prisma.user.findUnique({ where: { id: params.userId } });
+    const isPremium = user?.isPremium || false;
+
     // Chặn rủi ro trước khi thả vào hàng đợi (Throw Error nếu vi phạm)
-    await this.riskService.checkSafety(wallet.address, parseFloat(params.size), params.leverage);
+    await this.riskService.checkSafety(wallet.address, parseFloat(params.size), params.leverage, isPremium);
 
     this.logger.log(`[Queue] Adding OPEN_POSITION cho userId ${params.userId}`);
     await this.tradeQueue.add('OPEN_POSITION', params);

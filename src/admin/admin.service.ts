@@ -5,6 +5,9 @@ import { HlInfoService } from '../hyperliquid/hl-info.service';
 import { RedisService } from '../common/redis.service';
 import { ConfigService } from '@nestjs/config';
 import { TradeService } from '../trade/trade.service';
+import { SignalService } from '../signal/signal.service';
+import { UserService } from '../user/user.service';
+import { CreateSignalDto } from '../signal/signal.types';
 
 @Injectable()
 export class AdminService {
@@ -17,7 +20,9 @@ export class AdminService {
     private hlInfo: HlInfoService,
     private redis: RedisService,
     private config: ConfigService,
-    private trade: TradeService
+    private trade: TradeService,
+    private signalService: SignalService,
+    private userService: UserService
   ) {}
 
   async getInsights() {
@@ -383,6 +388,35 @@ export class AdminService {
       data: { isActive: !user.isActive }
     });
     return { status: 'success', isActive: updated.isActive };
+  }
+
+  async toggleUserPremium(userId: number) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return { status: 'error', message: 'User not found' };
+    
+    const newIsPremium = !(user as any).isPremium;
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { 
+        isPremium: newIsPremium,
+        premiumAt: newIsPremium ? new Date() : null
+      } as any
+    });
+    return { status: 'success', isPremium: (updated as any).isPremium };
+  }
+
+  // --- SIGNALS SECTION --- //
+  
+  async createSignal(dto: CreateSignalDto) {
+    return this.signalService.createSignal(dto);
+  }
+
+  async closeSignal(signalId: number) {
+    return this.signalService.closeSignal(signalId);
+  }
+
+  async getSignalsHistory(limit: number = 50) {
+    return this.signalService.getSignalHistory(limit);
   }
 
   async getAllOpenPositions() {

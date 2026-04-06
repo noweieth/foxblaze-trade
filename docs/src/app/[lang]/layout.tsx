@@ -1,11 +1,16 @@
 import { RootProvider } from 'fumadocs-ui/provider/next';
 import '../global.css'; // updated relative path
-import { Inter } from 'next/font/google';
+import { Inter, Caveat } from 'next/font/google';
 import { i18nUI } from '@/lib/layout.shared';
 import type { Metadata } from 'next';
 
 const inter = Inter({
   subsets: ['latin'],
+});
+
+const caveat = Caveat({
+  subsets: ['latin'],
+  variable: '--font-caveat',
 });
 
 export const metadata: Metadata = {
@@ -39,7 +44,7 @@ export default async function Layout({
 }) {
   const lang = (await params).lang;
   return (
-    <html lang={lang} className={inter.className} suppressHydrationWarning>
+    <html lang={lang} className={`${inter.className} ${caveat.variable}`} suppressHydrationWarning>
       <body className="flex flex-col min-h-screen">
         <RootProvider i18n={i18nUI.provider(lang)} theme={{ defaultTheme: 'dark' }}>
           {children}

@@ -45,6 +45,7 @@ function router() {
     if (hash === 'monitor' && typeof initMonitorPage === 'function') initMonitorPage();
     if (hash === 'settings' && typeof initSettingsPage === 'function') initSettingsPage();
     if (hash === 'analytics' && typeof initAnalyticsPage === 'function') initAnalyticsPage();
+    if (hash === 'signals' && typeof initSignalsPage === 'function') initSignalsPage();
 }
 
 window.addEventListener('hashchange', router);
@@ -402,11 +403,13 @@ function renderDetailPanel(user, balance) {
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; font-size:14px;">
                 <span class="pnl-muted">ID:</span> <span>${user.telegramId}</span>
                 <span class="pnl-muted">Status:</span> <span class="${user.isActive?'pnl-green':'pnl-red'}">${user.isActive?'Active':'Disabled'}</span>
+                <span class="pnl-muted">VIP Premium:</span> <span class="${user.isPremium?'pnl-green':'pnl-muted'}">${user.isPremium?'⭐ YES':'NO'}</span>
                 <span class="pnl-muted">Joined:</span> <span>${new Date(user.createdAt).toLocaleString()}</span>
             </div>
             <div style="margin-top:15px; display:flex; gap:10px;">
-                <button class="btn btn-confirm" style="flex:1" onclick="handleSendMessage(${user.id})">✉️ Message</button>
-                <button class="btn btn-cancel" style="flex:1" onclick="handleToggleActive(${user.id})">${user.isActive ? 'Disable User' : 'Enable User'}</button>
+                <button class="btn btn-confirm" style="flex:1" onclick="handleSendMessage(${user.id})">✉️ Msg</button>
+                <button class="btn ${user.isPremium?'btn-cancel':'btn-confirm'}" style="flex:1; ${!user.isPremium?'background:var(--green-pnl); color:black':''}" onclick="handleTogglePremium(${user.id})">${user.isPremium ? '❌ Revoke VIP' : '⭐ Grant VIP'}</button>
+                <button class="btn btn-cancel" style="flex:1" onclick="handleToggleActive(${user.id})">${user.isActive ? 'Disable' : 'Enable'}</button>
             </div>
         </div>
 
@@ -460,6 +463,19 @@ window.handleToggleActive = async function(userId) {
                 showToast(`User is now ${data.isActive ? 'Active' : 'Inactive'}`, 'success');
                 showUserDetail(userId); // Refresh panel
                 fetchUsers(adminUsersState.page, adminUsersState.search); // Refresh table
+            }
+        } catch(e) { showToast('Error', 'error'); }
+    });
+};
+
+window.handleTogglePremium = async function(userId) {
+    showModal("Confirm VIP Status", "Grant or Revoke VIP Premium access for this user?", false, async () => {
+        try {
+            const res = await fetch(`/api/admin/users/${userId}/premium`, { method: 'POST' });
+            const data = await res.json();
+            if(data.status === 'success') {
+                showToast(`VIP Premium ${data.isPremium ? 'GRANTED' : 'REVOKED'}`, 'success');
+                showUserDetail(userId);
             }
         } catch(e) { showToast('Error', 'error'); }
     });
@@ -684,3 +700,105 @@ async function initAnalyticsPage() {
         console.error('Failed to init analytics page', e);
     }
 }
+
+// ==========================================
+// Signals Page Logic
+// ==========================================
+
+async function initSignalsPage() {
+    try {
+        const res = await fetch('/api/admin/signals?limit=50');
+        const result = await res.json();
+        
+        if (result.status === 'success') {
+            const tbody = document.getElementById('signals-tbody');
+            tbody.innerHTML = '';
+            
+            if (result.data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center" style="color:var(--text-muted);">No signals created yet.</td></tr>';
+                return;
+            }
+            
+            result.data.forEach(sig => {
+                const tr = document.createElement('tr');
+                const isLong = sig.side === 'long';
+                const sideSpan = `<span class="${isLong?'pnl-green':'pnl-red'}">${sig.side.toUpperCase()}</span>`;
+                const statusSpan = sig.status === 'ACTIVE' 
+                    ? `<span class="bg-green t-green px-2 py-1 rounded" style="background:#203a27; color:var(--green-pnl); border-radius:4px; padding:2px 8px; font-weight:bold; font-size:11px;">ACTIVE</span>` 
+                    : `<span style="color:var(--text-muted)">CLOSED</span>`;
+                
+                tr.innerHTML = `
+                    <td><strong>${sig.asset}</strong> ${sideSpan} <span style="color:var(--text-muted); font-size:12px;">${sig.leverage}x</span></td>
+                    <td>$${sig.entryPrice}</td>
+                    <td><span class="pnl-green">$${sig.takeProfitPrice}</span> / <span class="pnl-red">$${sig.stopLossPrice}</span></td>
+                    <td>${statusSpan}</td>
+                    <td>${sig._count?.trades || 0} users</td>
+                    <td><span style="font-size:12px;color:var(--text-muted)">${new Date(sig.createdAt).toLocaleString()}</span></td>
+                    <td class="text-right">
+                        ${sig.status === 'ACTIVE' ? `<button class="btn btn-cancel" style="padding:4px 8px; font-size:11px;" onclick="closeSignal(${sig.id}, '${sig.asset}')">🛑 Force Close</button>` : `<span style="color:var(--text-muted); font-size:12px;">Ended</span>`}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    } catch(e) {
+        console.error('Failed to init signals page', e);
+    }
+}
+
+window.submitSignal = async function() {
+    const payload = {
+        asset: document.getElementById('sig-asset').value.toUpperCase(),
+        side: document.getElementById('sig-side').value,
+        entryPrice: parseFloat(document.getElementById('sig-entry').value),
+        takeProfitPrice: parseFloat(document.getElementById('sig-tp').value),
+        stopLossPrice: parseFloat(document.getElementById('sig-sl').value),
+        leverage: parseInt(document.getElementById('sig-leverage').value),
+        note: document.getElementById('sig-note').value
+    };
+
+    if (!payload.asset || !payload.entryPrice || !payload.takeProfitPrice || !payload.stopLossPrice || !payload.leverage) {
+        return showToast('Missing required fields', 'error');
+    }
+
+    showModal("Confirm Signal Broadcast", `Broadcast ${payload.side.toUpperCase()} ${payload.asset} at $${payload.entryPrice} to all Premium users?`, false, async () => {
+        try {
+            showToast("Broadcasting...", "info");
+            const res = await fetch('/api/admin/signals', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            
+            if (data.status === 'success') {
+                showToast(`Signal created! Executed: ${data.executedCount}, Notified: ${data.notifiedCount}`, 'success');
+                document.getElementById('create-signal-form').classList.add('hidden');
+                initSignalsPage(); // refresh table
+            } else {
+                showToast(data.message || 'Failed to create signal', 'error');
+            }
+        } catch(e) {
+            showToast('Network error', 'error');
+        }
+    });
+};
+
+window.closeSignal = async function(id, asset) {
+    showModal("Force Close Signal", `Are you sure you want to CLOSE the signal for ${asset}? This will send close orders for all copiers.`, false, async () => {
+        try {
+            showToast("Closing...", "info");
+            const res = await fetch(`/api/admin/signals/${id}/close`, { method: 'POST' });
+            const data = await res.json();
+            
+            if (data.status === 'success') {
+                showToast(`Signal closed! ${data.closedCount} copier orders being closed.`, 'success');
+                initSignalsPage();
+            } else {
+                showToast(data.message || 'Error occurred', 'error');
+            }
+        } catch(e) {
+            showToast('Network error', 'error');
+        }
+    });
+};

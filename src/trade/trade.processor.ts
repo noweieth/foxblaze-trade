@@ -83,7 +83,7 @@ export class TradeProcessor extends WorkerHost {
 
   private async handleOpenPosition(data: any) {
     this.logger.log(`[Debug] Data from Job: ${JSON.stringify(data)}`);
-    const { userId, asset, isBuy, size, leverage, tp, sl } = data;
+    const { userId, asset, isBuy, size, leverage, tp, sl, signalId } = data;
     
     this.logger.log(`[Debug] Checking/Activating wallet userId=${userId}`);
     const wallet = await this.ensureHlRegistration(userId);
@@ -149,7 +149,8 @@ export class TradeProcessor extends WorkerHost {
           entryPrice: markPx, 
           takeProfitPrice: tp ? parseFloat(tp) : null,
           stopLossPrice: sl ? parseFloat(sl) : null,
-        }
+          signalId: signalId || null,
+        } as any
       });
       
       this.logger.log(`✅ Hoàn thành OPEN_POSITION cho user ${userId}!`);

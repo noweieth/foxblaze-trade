@@ -15,6 +15,10 @@ model User {
   username   String?
   firstName  String?
   isActive   Boolean  @default(true)
+  isPremium  Boolean  @default(false)
+  premiumAt  DateTime?
+  autoCopy   Boolean  @default(true)
+  copySize   Float    @default(10)
   wallet     Wallet?
   trades     Trade[]
   deposits   Deposit[]
@@ -40,6 +44,8 @@ model Trade {
   id              Int      @id @default(autoincrement())
   user            User     @relation(fields: [userId], references: [id])
   userId          Int
+  signal          Signal?  @relation(fields: [signalId], references: [id])
+  signalId        Int?
   asset           String
   assetId         Int?
   side            String   // 'long' | 'short'
@@ -60,6 +66,7 @@ model Trade {
 
   @@index([userId])
   @@index([status])
+  @@index([signalId])
 }
 
 model Deposit {
@@ -73,5 +80,26 @@ model Deposit {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([status])
+}
+
+model Signal {
+  id              Int      @id @default(autoincrement())
+  asset           String
+  assetId         Int
+  side            String   // "long" | "short"
+  entryPrice      Float
+  takeProfitPrice Float
+  stopLossPrice   Float
+  leverage        Int      @default(10)
+  status          String   @default("ACTIVE") // ACTIVE, CLOSED, CANCELLED
+  closePrice      Float?
+  result          Float?
+  note            String?
+  trades          Trade[]
+  createdAt       DateTime @default(now())
+  closedAt        DateTime?
+  updatedAt       DateTime @updatedAt
+
   @@index([status])
 }

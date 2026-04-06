@@ -17,14 +17,20 @@ html > body[data-scroll-locked] {
 
 :root {
   --color-fd-primary: #FF6B35;
-  --color-fd-background: #FFFFFF;
-  --color-fd-card: #F5F5F5;
-  --color-fd-popover: #F5F5F5;
+  --color-fd-background: #ffffff;
+  --color-fd-card: #f9fafb;
+  --color-fd-popover: #ffffff;
+  --color-fd-muted: #f3f4f6;
+  --color-fd-muted-foreground: #4b5563;
+  --color-fd-border: #e5e7eb;
 }
 
 .dark {
   --color-fd-primary: #FF6B35;
-  --color-fd-background: #0A0A0A;
-  --color-fd-card: #141414;
-  --color-fd-popover: #141414;
+  --color-fd-background: #09090b;
+  --color-fd-card: #18181b;
+  --color-fd-popover: #09090b;
+  --color-fd-muted: #1f2937;
+  --color-fd-muted-foreground: #9ca3af;
+  --color-fd-border: #27272a;
 }

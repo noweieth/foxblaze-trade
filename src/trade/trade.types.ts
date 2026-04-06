@@ -6,6 +6,7 @@ export interface OpenPositionJob {
   leverage: number;
   tp?: string;
   sl?: string;
+  signalId?: number;
 }
 
 export interface ClosePositionJob {

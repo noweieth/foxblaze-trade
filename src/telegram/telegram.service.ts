@@ -14,6 +14,7 @@ import { ChartHandler } from './handlers/chart.handler';
 import { HelpHandler } from './handlers/help.handler';
 import { PnlHandler } from './handlers/pnl.handler';
 import { TestHandler } from './handlers/test.handler';
+import { PremiumHandler } from './handlers/premium.handler';
 
 @Injectable()
 export class TelegramService implements OnModuleInit, OnModuleDestroy {
@@ -34,6 +35,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     private readonly helpHandler: HelpHandler,
     private readonly pnlHandler: PnlHandler,
     private readonly testHandler: TestHandler,
+    private readonly premiumHandler: PremiumHandler,
   ) {
     const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
     if (!token) {
@@ -58,6 +60,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         { command: 'orders', description: 'Manage pending orders' },
         { command: 'history', description: 'View trade history' },
         { command: 'pnl', description: 'View PnL analysis chart' },
+        { command: 'premium', description: '⭐ Premium Features' },
         { command: 'help', description: 'View all commands & guides' },
       ]);
       this.logger.log('Thành công set Telegram Bot Menu Commands');
@@ -94,6 +97,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.helpHandler.register(this.bot);
     this.pnlHandler.register(this.bot);
     this.testHandler.register(this.bot);
+    this.premiumHandler.register(this.bot);
 
     // 2. FSM Fallback Message Interceptor
     this.bot.on('message:text', async (ctx: Context) => {
