@@ -50,7 +50,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.registerHandlers();
     
     try {
-      await this.bot.api.setMyCommands([
+      const botCommands = [
         { command: 'start', description: 'Create wallet & initialize DEX' },
         { command: 'deposit', description: 'How to deposit USDC (Arbitrum)' },
         { command: 'balance', description: 'View L1 & Margin balance' },
@@ -62,8 +62,11 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         { command: 'pnl', description: 'View PnL analysis chart' },
         { command: 'premium', description: '⭐ Premium Features' },
         { command: 'help', description: 'View all commands & guides' },
-      ]);
-      this.logger.log('Thành công set Telegram Bot Menu Commands');
+      ];
+
+      await this.bot.api.setMyCommands(botCommands);
+      await this.bot.api.setMyCommands(botCommands, { scope: { type: 'all_private_chats' } });
+      this.logger.log('Thành công set Telegram Bot Menu Commands (Default & Private Scopes)');
     } catch (e: any) {
       this.logger.error(`Lỗi khi set commands: ${e.message}`);
     }
