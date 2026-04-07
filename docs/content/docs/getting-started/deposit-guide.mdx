@@ -1,20 +1,23 @@
 ---
 title: Deposit Guide
-description: Funding your FoxBlaze wallet with USDC.
+description: How to fund your FoxBlaze wallet with USDC.
 ---
 
-After setting up your wallet, you need to deposit funds. FoxBlaze operates directly on Hyperliquid L1, meaning all deposits go through the native bridge.
+To start trading, you need to deposit USDC into your FoxBlaze wallet.
 
-<DepositDiagram />
+## How to deposit
 
-## Deposit Address
+1. **Get your address**: Type `/deposit` or `/start` in the bot to see your wallet address.
+2. **Send USDC**: From any wallet (MetaMask, Coinbase, Binance, etc.), send **USDC on Arbitrum One** to your address.
+3. **Tap the button**: After sending, tap **"🔄 I have completed my deposit"** in the bot. It will scan and detect your funds automatically.
+4. **Auto-bridge**: Once detected, your USDC is bridged to Hyperliquid with **zero gas fees** — no ETH needed.
 
-1. **Copy your Wallet Address**: Use the `/start` command to get your wallet address.
-2. **Send USDC**: Send native USDC (not USDC.e) on the **Arbitrum One** network to your wallet address. Minimum deposit is 10 USDC.
-3. **Automatic Scanning**: The FoxBlaze bot continuously monitors your address via the `DepositService` scanning the Arbitrum RPC.
+## Important notes
 
-Once the balance reaches > 1.0 USDC, the `AUTO_DEPOSIT` background queue is triggered. Your USDC will be gaslessly bridged to Hyperliquid.
+- **Network**: Only send USDC on **Arbitrum One**. Other networks (Ethereum, BSC, etc.) are not supported.
+- **Minimum**: First deposit must be at least **10 USDC** to activate margin trading.
+- **Speed**: Bridging usually takes under 30 seconds after detection.
 
 <Callout title="Why Arbitrum?" type="info">
-Hyperliquid's native L1 bridge operates via the Arbitrum network, allowing low fee and fast bridge transactions directly to the Perps exchange without requiring an EVM gas token.
+Hyperliquid uses Arbitrum as its native bridge network. This means low fees and fast transfers — no ETH gas required.
 </Callout>

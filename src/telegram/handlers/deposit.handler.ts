@@ -17,7 +17,10 @@ export class DepositHandler {
   ) {}
 
   register(bot: Bot) {
-    bot.command('deposit', async (ctx: Context) => {
+    bot.command('deposit', async (ctx: Context) => this.handleDeposit(ctx));
+  }
+
+  async handleDeposit(ctx: Context) {
       if (!ctx.from) return;
       const telegramId = BigInt(ctx.from.id);
       
@@ -35,7 +38,9 @@ export class DepositHandler {
         const accountState = await this.hlInfo.getAccountState(wallet.address);
         const equityUsdc = parseFloat(accountState.equity).toFixed(2);
 
-        const kb = new InlineKeyboard().text("🔄 I have completed my deposit (Refresh)", 'deposit_refresh');
+        const kb = new InlineKeyboard()
+          .url("📖 Docs", "https://docs.foxblaze.trade")
+          .text("🔄 I have completed my deposit", "deposit_refresh");
 
         await ctx.reply(
           `💰 <b>ZERO-GAS DEPOSIT INSTRUCTIONS</b>\n\n` +
@@ -49,7 +54,6 @@ export class DepositHandler {
         this.logger.error(`Deposit error: ${err.message}`);
         await ctx.reply(`❌ System error: ${err.message}`);
       }
-    });
   }
 
   async handleCallbackQuery(ctx: Context, telegramId: bigint, cbData: string): Promise<boolean> {
@@ -65,7 +69,8 @@ export class DepositHandler {
       const checkResult = await this.depositService.checkUserDeposit(user.id, wallet.address);
       
       if (checkResult.success) {
-         await ctx.editMessageText(`✅ <b>Success!</b> Deposit detected: <b>${checkResult.amount} USDC</b>.\n\nWe are bridging your funds from Arbitrum L1 to Hyperliquid L2. Please check /balance in ~60 seconds to see the updated balance!`, { parse_mode: 'HTML' });
+         const successKb = new InlineKeyboard().text("📊 Check Balance", "nav_balance");
+         await ctx.editMessageText(`✅ <b>Success!</b> Deposit detected: <b>${checkResult.amount} USDC</b>.\n\nWe are bridging your funds from Arbitrum L1 to Hyperliquid L2.`, { parse_mode: 'HTML', reply_markup: successKb });
       } else {
          const kb = new InlineKeyboard().text("🔄 I have completed my deposit (Refresh)", 'deposit_refresh');
          await ctx.editMessageText(`⚖️ No new deposits detected on L1 yet (Minimum 1.0 USDC).\nPlease ensure you used the <b>Arbitrum One</b> network and that the transaction is marked as "SUCCESS" in your wallet.`, { parse_mode: 'HTML', reply_markup: kb });

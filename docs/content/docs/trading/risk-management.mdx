@@ -1,27 +1,31 @@
 ---
 title: Risk Management
-description: Configuring Take Profit, Stop Loss, and Safety limits.
+description: Protect your trades with Take Profit and Stop Loss.
 ---
 
-FoxBlaze intercepts all trade requests and evaluates them against our internal `RiskService` before executing them on-chain.
-
-## Limits and Constraints
-Before any `OPEN_POSITION` job is sent to the BullMQ execution queue, your trade validates against two constraint systems:
-1. **Sufficient Margin**: Verifies you have enough collateral to open the position.
-2. **Leverage Limit**: Validates that your requested multiplier does not exceed the asset's specific `maxLeverage` allowed by Hyperliquid.
+FoxBlaze automatically checks every trade before executing to make sure you have enough margin and your leverage doesn't exceed the asset's limit.
 
 ## Take Profit & Stop Loss
 
-You can configure TP and SL directly during the Interactive Setup Panel before executing the trade. 
+You can set TP/SL in two ways:
 
-### Post-Trade Configuration
-If the position is already open, you can dynamically modify the TP/SL limits using Telegram commands:
+### During order setup
+When creating a trade with `/long` or `/short`, use the **TP** and **SL** buttons on the Order Setup Panel to set your targets before confirming.
 
-- **Take Profit**: `/tp <ticker> <price>` (E.g. `/tp SOL 180`)
-- **Stop Loss**: `/sl <ticker> <price>` (E.g. `/sl SOL 120`)
+### After opening a position
+If your position is already open, use these commands:
 
-These commands will enqueue a `SET_TP_SL` background task which safely modifies or adds reduce-only trigger orders on the exchange.
+- `/tp BTC 70000` — Set Take Profit for BTC at $70,000
+- `/sl BTC 58000` — Set Stop Loss for BTC at $58,000
 
-<Callout title="Execution Speed" type="info">
-TP and SL orders sit natively on the Hyperliquid orderbook. The FoxBlaze agent does not soft-evaluate prices locally via WebSockets, ensuring absolute minimal latency and preventing slippage during high-volatility events.
+These orders are placed directly on Hyperliquid's orderbook, so they execute instantly when the price is reached — even if the bot is offline.
+
+## Safety checks
+
+Before every trade, FoxBlaze verifies:
+- ✅ You have enough USDC margin for the position
+- ✅ Your leverage doesn't exceed the asset's maximum allowed
+
+<Callout title="How TP/SL works" type="info">
+Your TP and SL orders sit on Hyperliquid's native orderbook. They are not monitored by the bot — they execute at exchange-level speed with zero delay.
 </Callout>

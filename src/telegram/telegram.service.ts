@@ -15,6 +15,7 @@ import { HelpHandler } from './handlers/help.handler';
 import { PnlHandler } from './handlers/pnl.handler';
 import { TestHandler } from './handlers/test.handler';
 import { PremiumHandler } from './handlers/premium.handler';
+import { WithdrawHandler } from './handlers/withdraw.handler';
 
 @Injectable()
 export class TelegramService implements OnModuleInit, OnModuleDestroy {
@@ -36,6 +37,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     private readonly pnlHandler: PnlHandler,
     private readonly testHandler: TestHandler,
     private readonly premiumHandler: PremiumHandler,
+    private readonly withdrawHandler: WithdrawHandler,
   ) {
     const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
     if (!token) {
@@ -51,21 +53,23 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     
     try {
       const botCommands = [
-        { command: 'start', description: 'Create wallet & initialize DEX' },
-        { command: 'deposit', description: 'How to deposit USDC (Arbitrum)' },
-        { command: 'balance', description: 'View L1 & Margin balance' },
+        { command: 'start', description: 'Get started & create wallet' },
+        { command: 'deposit', description: 'Deposit USDC (Arbitrum)' },
+        { command: 'balance', description: 'Account overview' },
+        { command: 'chart', description: 'Interactive price chart' },
         { command: 'long', description: 'Open LONG position' },
         { command: 'short', description: 'Open SHORT position' },
-        { command: 'positions', description: 'Manage active positions' },
-        { command: 'orders', description: 'Manage pending orders' },
-        { command: 'history', description: 'View trade history' },
-        { command: 'pnl', description: 'View PnL analysis chart' },
+        { command: 'positions', description: 'Active positions' },
+        { command: 'orders', description: 'Pending orders' },
+        { command: 'pnl', description: 'PnL analysis' },
+        { command: 'withdraw', description: 'Withdraw USDC to external wallet' },
         { command: 'premium', description: '⭐ Premium Features' },
-        { command: 'help', description: 'View all commands & guides' },
+        { command: 'help', description: 'Commands & guides' },
       ];
 
       await this.bot.api.setMyCommands(botCommands);
       await this.bot.api.setMyCommands(botCommands, { scope: { type: 'all_private_chats' } });
+      await this.bot.api.setMyDescription('FoxBlaze Trading Bot - The next-gen autonomous Hyperliquid trader.\\n\\n📖 Read the manual: https://docs.foxblaze.trade').catch(() => {});
       this.logger.log('Thành công set Telegram Bot Menu Commands (Default & Private Scopes)');
     } catch (e: any) {
       this.logger.error(`Lỗi khi set commands: ${e.message}`);
@@ -101,6 +105,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.pnlHandler.register(this.bot);
     this.testHandler.register(this.bot);
     this.premiumHandler.register(this.bot);
+    this.withdrawHandler.register(this.bot);
 
     // 2. FSM Fallback Message Interceptor
     this.bot.on('message:text', async (ctx: Context) => {
@@ -112,7 +117,10 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
       
       const telegramId = BigInt(ctx.from.id);
-      await this.tradeHandler.handleTextMessage(ctx, telegramId, ctx.message.text);
+      let handled = await this.withdrawHandler.handleTextInput(ctx, telegramId, ctx.message.text);
+      if (!handled) {
+        await this.tradeHandler.handleTextMessage(ctx, telegramId, ctx.message.text);
+      }
     });
 
     // 3. Callback Query Interceptor
@@ -124,10 +132,20 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       const telegramId = BigInt(ctx.from.id);
       
       let isHandled = await this.tradeHandler.handleCallbackQuery(ctx, telegramId, cbData);
+      if (!isHandled) isHandled = await this.withdrawHandler.handleCallbackQuery(ctx, telegramId, cbData);
       if (!isHandled) isHandled = await this.chartHandler.handleCallbackQuery(ctx, telegramId, cbData);
       if (!isHandled) isHandled = await this.depositHandler.handleCallbackQuery(ctx, telegramId, cbData);
       if (!isHandled) isHandled = await this.positionHandler.handleCallbackQuery(ctx, telegramId, cbData);
       if (!isHandled) isHandled = await this.orderHandler.handleCallbackQuery(ctx, telegramId, cbData);
+      
+      if (!isHandled) {
+         if (cbData === 'nav_deposit') { await this.depositHandler.handleDeposit(ctx); isHandled = true; }
+         else if (cbData === 'nav_balance') { await this.balanceHandler.handleBalance(ctx); isHandled = true; }
+         else if (cbData === 'nav_help') { await this.helpHandler.handleHelp(ctx); isHandled = true; }
+         else if (cbData === 'nav_long') { await (this.tradeHandler as any).initTrade(ctx, 'long'); isHandled = true; }
+         else if (cbData === 'nav_short') { await (this.tradeHandler as any).initTrade(ctx, 'short'); isHandled = true; }
+         else if (cbData === 'nav_markets') { (this.infoHandler as any).handleMarkets(ctx); isHandled = true; }
+      }
       
       try {
         await ctx.answerCallbackQuery(); // Tắt vòng loading cho Nút bấm Telegram

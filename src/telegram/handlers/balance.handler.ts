@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Bot, Context, InputFile } from 'grammy';
+import { Bot, Context, InputFile, InlineKeyboard } from 'grammy';
 import { UserService } from '../../user/user.service';
 import { WalletService } from '../../wallet/wallet.service';
 import { HlInfoService } from '../../hyperliquid/hl-info.service';
@@ -17,7 +17,10 @@ export class BalanceHandler {
   ) {}
 
   register(bot: Bot) {
-    bot.command('balance', async (ctx: Context) => {
+    bot.command('balance', async (ctx: Context) => this.handleBalance(ctx));
+  }
+
+  async handleBalance(ctx: Context) {
       if (!ctx.from) return;
       
       const telegramId = BigInt(ctx.from.id);
@@ -78,7 +81,7 @@ export class BalanceHandler {
           rows: [
             { values: ['Equity', `$${equity.toFixed(2)}`], colors: [BRAND.textLight, BRAND.textWhite] },
             { values: ['Available Margin', `$${available.toFixed(2)}`], colors: [BRAND.textLight, BRAND.textWhite] },
-            { values: ['Used Margin', `$${used.toFixed(2)}`], colors: [BRAND.textMuted, BRAND.brandAmber] },
+            { values: ['Used Margin', `$${used.toFixed(2)}`], colors: [BRAND.textMuted, BRAND.brandTeal] },
           ],
           startY: cy + 16,
           tableWidth: w - 64, // pad 32 each side
@@ -90,14 +93,19 @@ export class BalanceHandler {
 
         const buffer = this.cardRenderer.toBuffer(canvas);
 
+        const kb = new InlineKeyboard()
+          .text("⬆️ Long", "nav_long").text("⬇️ Short", "nav_short").row()
+          .text("📥 Deposit", "nav_deposit").text("💸 Withdraw", "nav_withdraw").row()
+          .text("📈 Chart BTC", "chart_BTC_15m").text("🌊 Markets", "nav_markets");
+
         await ctx.replyWithPhoto(new InputFile(buffer), {
           caption: `🏦 <b>ACCOUNT OVERVIEW</b>\n\nL1 Wallet: <code>${wallet.address}</code>`,
           parse_mode: 'HTML',
+          reply_markup: kb
         });
       } catch (err: any) {
         this.logger.error(`Balance error: ${err.message}`);
         await ctx.reply(`❌ Error loading balance: L1 Bridge Connector failed.`);
       }
-    });
   }
 }

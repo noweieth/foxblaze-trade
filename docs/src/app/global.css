@@ -12,11 +12,11 @@ html > body[data-scroll-locked] {
 }
 
 @theme {
-  --color-fd-primary: #FF6B35;
+  --color-fd-primary: #5ECDAC;
 }
 
 :root {
-  --color-fd-primary: #FF6B35;
+  --color-fd-primary: #3BA68C;
   --color-fd-background: #ffffff;
   --color-fd-card: #f9fafb;
   --color-fd-popover: #ffffff;
@@ -26,11 +26,96 @@ html > body[data-scroll-locked] {
 }
 
 .dark {
-  --color-fd-primary: #FF6B35;
+  --color-fd-primary: #5ECDAC;
   --color-fd-background: #09090b;
   --color-fd-card: #18181b;
   --color-fd-popover: #09090b;
   --color-fd-muted: #1f2937;
   --color-fd-muted-foreground: #9ca3af;
   --color-fd-border: #27272a;
+}
+
+/* Premium Page Styles */
+.premium-hero {
+  background: linear-gradient(135deg, #0d0d0d 0%, #1a1a2e 40%, #16213e 70%, #0d0d0d 100%);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  border-radius: 16px;
+  padding: 40px 32px;
+  margin-bottom: 28px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.premium-hero::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(ellipse at 50% 0%, rgba(212, 175, 55, 0.1) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.premium-hero h2 {
+  font-size: 26px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #D4AF37, #F4E285, #D4AF37);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: 1.5px;
+  margin-bottom: 8px;
+}
+
+.premium-hero p {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 15px;
+  max-width: 500px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+.premium-hero strong {
+  color: #D4AF37;
+  -webkit-text-fill-color: #D4AF37;
+}
+
+.premium-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin: 24px 0;
+}
+
+.premium-card {
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(212, 175, 55, 0.12);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.04) 0%, transparent 100%);
+  transition: border-color 0.2s;
+}
+
+.premium-card:hover {
+  border-color: rgba(212, 175, 55, 0.3);
+}
+
+.premium-card h4 {
+  font-weight: 600;
+  margin-bottom: 4px;
+  font-size: 15px;
+}
+
+.premium-card p {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .premium-grid {
+    grid-template-columns: 1fr;
+  }
 }

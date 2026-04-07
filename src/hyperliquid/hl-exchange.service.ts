@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ExchangeClient, HttpTransport } from '@nktkas/hyperliquid';
-import { createSubAccount, approveAgent, setReferrer, approveBuilderFee } from '@nktkas/hyperliquid/api/exchange';
+import { createSubAccount, approveAgent, setReferrer, approveBuilderFee, withdraw3 } from '@nktkas/hyperliquid/api/exchange';
 import { ethers } from 'ethers';
 
 @Injectable()
@@ -51,6 +51,15 @@ export class HlExchangeService {
         builder: builderAddress as `0x${string}`,
         maxFeeRate
       }
+    );
+  }
+
+  async withdrawFromL2(userPrivateKey: string, destination: string, amount: string) {
+    const userWallet = new ethers.Wallet(userPrivateKey);
+    
+    return await withdraw3(
+      { wallet: userWallet, transport: this.transport },
+      { destination: destination as `0x${string}`, amount }
     );
   }
 

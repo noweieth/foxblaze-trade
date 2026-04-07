@@ -39,6 +39,62 @@ export class HlInfoService {
     return assets.find(a => a.name.toUpperCase() === name.toUpperCase());
   }
 
+  private readonly HIP3_ALIASES: Record<string, string> = {
+    'WTIOIL': 'xyz:CL',
+    'WTI': 'xyz:CL',
+    'CL': 'xyz:CL',
+    'CL-USDC': 'xyz:CL',
+    'GOLD': 'xyz:GOLD',
+    'XAU': 'xyz:GOLD',
+    'SILVER': 'xyz:SILVER',
+    'XAG': 'xyz:SILVER',
+    'EUR': 'xyz:EUR',
+    'EURUSD': 'xyz:EUR',
+    'JPY': 'xyz:JPY',
+    'USDJPY': 'xyz:JPY',
+  };
+
+  async findAssetFuzzy(query: string): Promise<{ asset: AssetMeta | null, suggestions: string[], displayName?: string }> {
+    const q = query.trim().toUpperCase();
+
+    if (this.HIP3_ALIASES[q]) {
+      return { 
+        asset: { name: this.HIP3_ALIASES[q], assetId: -1, szDecimals: 0, maxLeverage: 100, tickSize: 0.01 }, 
+        suggestions: [],
+        displayName: q
+      };
+    }
+    
+    if (q.startsWith('XYZ:')) {
+      const properName = "xyz:" + q.slice(4);
+      return { 
+        asset: { name: properName, assetId: -1, szDecimals: 0, maxLeverage: 100, tickSize: 0.01 }, 
+        suggestions: [],
+        displayName: q.slice(4) // Drop the XYZ: for display
+      };
+    }
+
+    const assets = await this.getAllAssets();
+    
+    const exact = assets.find(a => a.name.toUpperCase() === q);
+    if (exact) return { asset: exact, suggestions: [] };
+    
+    // 1. Partial match where asset contains the query
+    let matches = assets.filter(a => a.name.toUpperCase().includes(q));
+    
+    // 2. If no match and query is long enough, try matching assets that start with part of the query,
+    // or where the query starts with the asset (e.g. WTIOIL starts with WTI)
+    if (matches.length === 0 && q.length >= 3) {
+      matches = assets.filter(a => 
+        (a.name.length >= 3 && q.startsWith(a.name.toUpperCase())) || 
+        a.name.toUpperCase().startsWith(q.slice(0, 3))
+      );
+    }
+    
+    const suggestions = Array.from(new Set(matches.map(a => a.name))).slice(0, 5);
+    return { asset: null, suggestions };
+  }
+
   async getMarketsData(): Promise<any[]> {
     return this.cachedQuery<any[]>('hl:markets', 10, async () => {
       const data = await this.infoClient.metaAndAssetCtxs();
@@ -118,7 +174,8 @@ export class HlInfoService {
         equity: equity.toString(),
         availableBalance: (equity - marginUsed).toString(),
         marginUsed: marginUsed.toString(),
-        totalPnl: totalPnl.toString()
+        totalPnl: totalPnl.toString(),
+        withdrawable: state.withdrawable
       };
     });
   }

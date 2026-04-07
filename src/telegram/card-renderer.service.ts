@@ -8,11 +8,11 @@ import * as path from 'path';
 // Green = ONLY for profit/long values
 export const BRAND = {
   // Background
-  bgDark:       '#0d1117',
-  bgDarker:     '#090d12',
+  bgDark:       '#072722',
+  bgDarker:     '#041a16',
 
-  // Brand accent (amber — fox fire 🔥)
-  brandAmber:   '#E8862A',
+  // Brand accent (teal)
+  brandTeal:    '#96FCE4',
 
   // Semantic (PnL-only)
   profitGreen:  '#00E676',
@@ -61,9 +61,9 @@ export class CardRenderer implements OnModuleInit {
     try {
       this.logoImg = await loadImage(path.join(publicDir, 'logo_foxblaze.png'));
       this.bgImg = await loadImage(path.join(publicDir, 'bg_card.png'));
-      this.logger.log('✅ Brand assets loaded (logo + bg)');
+      this.logger.log('✅ Brand assets loaded (logo_foxblaze.png, bg_card.png)');
     } catch (e: any) {
-      this.logger.warn(`⚠️ Brand assets not found: ${e.message}`);
+      this.logger.error(`⚠️ Failed to load brand assets: ${e.message}. Cards will render without images.`);
     }
   }
 
@@ -121,6 +121,8 @@ export class CardRenderer implements OnModuleInit {
       rightLabel?: string;
       rightLabelColor?: string;
       rightSubtitle?: string;
+      rightBadge?: string;
+      rightBadgeColor?: string;
       subtitle?: string;
     }
   ): number {
@@ -139,7 +141,7 @@ export class CardRenderer implements OnModuleInit {
     const tcY = hTop + 24;
 
     // Brand name — amber
-    ctx.fillStyle = BRAND.brandAmber;
+    ctx.fillStyle = BRAND.brandTeal;
     ctx.font = 'bold 22px "Arial"';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
@@ -147,20 +149,31 @@ export class CardRenderer implements OnModuleInit {
 
     // Sub-brand
     ctx.fillStyle = BRAND.textMuted;
-    ctx.font = '9px "Arial"';
-    ctx.fillText(opts.subtitle || 'T R A D I N G   B O T', cx, tcY + 10);
+    ctx.font = '11px "Arial"';
+    ctx.fillText(opts.subtitle || 'T R A D I N G   B O T', cx, tcY + 12);
 
     // Right label
     if (opts.rightLabel) {
       ctx.textAlign = 'right';
       ctx.fillStyle = opts.rightLabelColor || BRAND.textWhite;
-      ctx.font = 'bold 26px "Arial"';
-      ctx.fillText(opts.rightLabel, opts.width - PAD, tcY - 8);
+      ctx.font = 'bold 22px "Arial"';
+      ctx.fillText(opts.rightLabel, opts.width - PAD, tcY - 9);
 
       if (opts.rightSubtitle) {
-        ctx.fillStyle = BRAND.textMuted;
-        ctx.font = '9px "Arial"';
-        ctx.fillText(opts.rightSubtitle, opts.width - PAD, tcY + 10);
+        let offsetX = opts.width - PAD;
+        if (opts.rightBadge) {
+          ctx.font = '11px "Arial"';
+          ctx.fillStyle = opts.rightBadgeColor || BRAND.textMuted;
+          ctx.textAlign = 'right';
+          ctx.fillText(opts.rightBadge, offsetX, tcY + 12);
+          const badgeW = ctx.measureText(opts.rightBadge).width;
+          offsetX -= badgeW + 6; // gap between price and badge
+        }
+
+        ctx.fillStyle = BRAND.textLight;
+        ctx.font = '11px "Arial"';
+        ctx.textAlign = 'right';
+        ctx.fillText(opts.rightSubtitle, offsetX, tcY + 12);
       }
     }
 
@@ -200,11 +213,11 @@ export class CardRenderer implements OnModuleInit {
     ctx.lineTo(w - PAD - 10, fY);
     ctx.stroke();
 
-    ctx.fillStyle = BRAND.textDark;
-    ctx.font = '9px "Arial"';
+    ctx.fillStyle = BRAND.textMuted;
+    ctx.font = '11px "Arial"';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(tipText, w / 2, fY + 18);
+    ctx.fillText(tipText, w / 2, fY + 15);
   }
 
   // ─── Table ────────────────────────────────────────────────────────
@@ -816,7 +829,7 @@ export class CardRenderer implements OnModuleInit {
 
     // Brand name
     ctx.textAlign = 'left';
-    ctx.fillStyle = BRAND.brandAmber;
+    ctx.fillStyle = BRAND.brandTeal;
     ctx.font = 'bold 28px "Arial"';
     const textX = startX + logoW + (logoW > 0 ? logoGap : 0);
     ctx.fillText('FOXBLAZE', textX, PAD + 18);
@@ -927,12 +940,12 @@ export class CardRenderer implements OnModuleInit {
     }
 
     ctx.textAlign = 'left';
-    ctx.fillStyle = BRAND.brandAmber;
+    ctx.fillStyle = BRAND.brandTeal;
     ctx.font = 'bold 28px "Arial"';
     const textX = startX + logoW + (logoW > 0 ? logoGap : 0);
     ctx.fillText('FOXBLAZE', textX, PAD + 18);
 
-    ctx.fillStyle = BRAND.brandAmber; // Golden tone for premium
+    ctx.fillStyle = BRAND.brandTeal; // Teal tone for premium
     ctx.font = '12px "Arial"';
     ctx.fillText('⭐   P R E M I U M   A C C O U N T', textX, PAD + 40);
 
@@ -1002,12 +1015,14 @@ export class CardRenderer implements OnModuleInit {
     const { canvas, ctx } = this.createCard(w, h);
     
     try {
-        const bgPath = path.join(process.cwd(), 'public', 'background_simple.svg');
-        const bgImage = await (global as any).loadedBgSvg || await loadImage(bgPath);
-        (global as any).loadedBgSvg = bgImage;
-        ctx.drawImage(bgImage, 0, 0, w, h);
+        if (this.bgImg) {
+           // Draw the full background image at a reduced opacity to not overwhelm the text
+           ctx.globalAlpha = 0.25;
+           ctx.drawImage(this.bgImg, 0, 0, w, h);
+           ctx.globalAlpha = 1.0;
+        }
     } catch (e) {
-        this.logger.error("Failed to load background SVG for Premium Card", e);
+        this.logger.error("Failed to load background for Premium Card", e);
     }
 
     this.drawPremiumCard(ctx, { width: w, height: h, ...opts });

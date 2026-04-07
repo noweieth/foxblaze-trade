@@ -1,14 +1,28 @@
 ---
 title: Architecture
-description: The technical architecture of the FoxBlaze Trading Bot
+description: How FoxBlaze is built under the hood.
 ---
 
-FoxBlaze is built on a modern, high-performance stack designed for low-latency crypto trading.
+FoxBlaze is built for speed and reliability. Here's a high-level overview of the tech stack.
 
-<ArchitectureDiagram />
+## Core Stack
 
-## Core Components
-- **TypeScript & NestJS**: Modular backend structure.
-- **PostgreSQL & Prisma**: Relational persistence for state.
-- **BullMQ**: Reliable, Redis-backed asynchronous queue for execution.
-- **Hyperliquid SDK**: Native integration via `@nktkas/hyperliquid` for the Hyperliquid L1 app-chain.
+| Component | Technology |
+|---|---|
+| Backend | TypeScript + NestJS |
+| Database | PostgreSQL + Prisma ORM |
+| Task Queue | BullMQ (Redis-backed) |
+| Exchange | Hyperliquid SDK (`@nktkas/hyperliquid`) |
+| Bot Framework | grammY (Telegram Bot API) |
+| Charts | Canvas API with real-time OHLCV data |
+
+## How a trade flows
+
+1. You send `/long BTC` in Telegram
+2. The bot shows the Order Setup Panel
+3. You adjust size, leverage, TP/SL and tap Confirm
+4. FoxBlaze validates margin and leverage limits
+5. A background job executes the order on Hyperliquid
+6. You get instant confirmation in the chat
+
+All trade execution happens through background job queues, ensuring reliability even during high traffic.

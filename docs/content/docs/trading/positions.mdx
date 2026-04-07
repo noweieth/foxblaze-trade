@@ -1,29 +1,35 @@
 ---
 title: Managing Positions
-description: How to view your active trades and realized PNL.
+description: How to view, manage and close your active trades.
 ---
 
-Monitoring your active trades is seamless with FoxBlaze's visual rendering engine.
+## View your positions
 
-## Command: `/positions`
+Type `/positions` to see all your active trades. The bot generates a visual **PnL Card** showing:
 
-Typing `/positions` will fetch your live open trades. Rather than text, the bot generates a dynamic, high-fidelity **PNL Visual Card**. This card contains:
+- Asset name and direction (Long/Short)
+- Entry price vs current price
+- Leverage and position size
+- Unrealized profit/loss (USD)
+- Return on equity (ROE%)
 
-- Entry Price vs Mark Price
-- Leverage and Asset Size
-- Current TP/SL Parameters
-- Unrealized PnL (in USD)
-- Return on Equity (ROE%)
-- The last 12-hour 15-minute price sparkline for the asset
+## Close a position
 
-## Closing Positions
+You have two options:
 
-There are two ways to close an open position:
-1. **Interactive Button**: Beneath the PNL Card, click the `✖️ CLOSE` inline button for the specific asset.
-2. **Command**:
-   - `/close <ticker>`: E.g., `/close BTC` to market-close the specific position.
-   - `/close ALL`: Liquidate *all* active positions simultaneously via concurrent RPC calls.
+1. **Tap the button**: Below the PnL Card, tap `✖️ CLOSE` next to the position you want to close.
+2. **Use a command**:
+   - `/close BTC` — Close your BTC position
+   - `/close all` — Close everything at once
 
-<Callout title="After Closing" type="success">
-When a position successfully closes, FoxBlaze will render your **Realized PNL Card** showing your final profit and ROE. You can easily share this natively to your Telegram channels.
+<Callout title="PnL Card" type="success">
+When a position closes, FoxBlaze generates a beautiful **Realized PnL Card** showing your final profit. Share it directly to your Telegram channels!
 </Callout>
+
+## Other useful commands
+
+| Command | What it does |
+|---|---|
+| `/balance` | View your total equity and available margin |
+| `/orders` | See all pending limit and trigger orders |
+| `/history` | View recent closed trades |

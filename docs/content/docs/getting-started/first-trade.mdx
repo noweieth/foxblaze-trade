@@ -1,17 +1,15 @@
 ---
 title: First Trade
-description: Execute your first Perpetual Futures trade.
+description: Open your first position in under 30 seconds.
 ---
 
-Once your wallet is funded, you are ready to open your first position.
+Once your wallet is funded, you're ready to trade. Here's how:
 
-<TradeDiagram />
+## Open a position
 
-## The Trade Command
-
-1. Send `/long` or `/short` to the bot.
-2. The bot will prompt you for an asset ticker (e.g. `BTC`, `SOL`).
-3. An **Interactive Order Setup Panel** will appear.
+1. Type `/long` to go long, or `/short` to go short.
+2. Enter the asset ticker (e.g. `BTC`, `ETH`, `SOL`).
+3. An **Order Setup Panel** appears with all your trade parameters.
 
 ```text
 🦊 FOXBLAZE ORDER SETUP 🦊
@@ -24,16 +22,19 @@ Once your wallet is funded, you are ready to open your first position.
 🛡️ SL Price: None
 ```
 
-## Setup Panel Configuration
+## Adjust your trade
 
-You can adjust the parameters using the inline keyboard.
+Use the inline buttons to customize:
 
-- **Size**: Adjust your position collateral.
-- **Leverage**: Change the leverage multiplier (capped at the asset's max leverage).
-- **Take Profit / Stop Loss**: Set auto-exit triggers. 
+- **Size** — How much USDC you want to put in ($10, $25, $50, $100, or custom)
+- **Leverage** — Multiplier for your position (5x, 10x, 20x, or custom)
+- **Take Profit** — Auto-close when price hits your target
+- **Stop Loss** — Auto-close to limit your loss
 
-When you click a custom button, the bot will ask you to reply with your desired value via Telegram's Force Reply modal.
+## Execute
 
-## Confirmation
+Tap **Confirm Trade** when ready. The bot verifies your margin, checks leverage limits, and places a market order on Hyperliquid instantly.
 
-Once ready, click **Confirm Trade**. The background `TradeService` will verify your risk limits and place a market order directly on the Hyperliquid exchange.
+<Callout title="Quick tip" type="info">
+You can also open trades directly from the chart view! Tap the Long/Short buttons below any chart.
+</Callout>

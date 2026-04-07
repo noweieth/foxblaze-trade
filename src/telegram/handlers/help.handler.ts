@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { Bot, Context } from 'grammy';
+import { Bot, Context, InlineKeyboard } from 'grammy';
 
 @Injectable()
 export class HelpHandler {
   register(bot: Bot) {
-    bot.command('help', async (ctx: Context) => {
+    bot.command('help', async (ctx: Context) => this.handleHelp(ctx));
+  }
+
+  async handleHelp(ctx: Context) {
       const msg =
         `🦊 <b>FOXBLAZE — COMMAND GUIDE</b>\n\n` +
         `<b>🚀 TRADING</b>\n` +
@@ -31,7 +34,12 @@ export class HelpHandler {
         `/premium — Activate & Manage VIP Features\n\n` +
         `⚡ <i>Powered by Hyperliquid L1 • Zero-Gas Deposit</i>`;
 
-      await ctx.reply(msg, { parse_mode: 'HTML' });
-    });
+      const kb = new InlineKeyboard()
+        .url("📖 Full Documentation", "https://docs.foxblaze.trade").row()
+        .text("📈 Chart", "chart_BTC_15m")
+        .text("💰 Balance", "nav_balance")
+        .text("⬆️ Trade", "nav_long");
+
+      await ctx.reply(msg, { parse_mode: 'HTML', reply_markup: kb });
   }
 }

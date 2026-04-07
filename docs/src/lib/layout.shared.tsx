@@ -16,7 +16,7 @@ export function baseOptions(): BaseLayoutProps {
     nav: {
       title: (
         <div className="flex items-center gap-2">
-          <img src="/logo_foxblaze.svg" alt="FoxBlaze Logo" className="w-8 h-8 rounded-full" />
+          <img src="/logo.png" alt="FoxBlaze" className="w-7 h-7 object-contain" />
           <span className="font-semibold">{appName}</span>
         </div>
       ),
@@ -28,12 +28,8 @@ export function baseOptions(): BaseLayoutProps {
         active: 'nested-url',
       },
       {
-        text: 'API Reference',
-        url: '#',
-      },
-      {
         text: 'Community',
-        url: 'https://t.me/foxblaze',
+        url: 'https://t.me/foxblazehub',
       },
     ],
     githubUrl: `https://github.com/${gitConfig.user}/${gitConfig.repo}`,

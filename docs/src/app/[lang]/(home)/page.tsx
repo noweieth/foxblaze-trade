@@ -1,26 +1,31 @@
-import Link from 'next/link';
-import { Rocket, TrendingUp, Shield, Cpu } from 'lucide-react';
+import Link from 'fumadocs-core/link';
+import { Rocket, Star, Shield, Cpu } from 'lucide-react';
 
-export default function HomePage() {
+export default async function HomePage(props: {
+  params: Promise<{ lang: string }>;
+}) {
+  const params = await props.params;
+  const lang = params.lang;
+
   return (
     <main className="flex flex-col flex-1 pb-16">
       {/* Hero Section */}
       <section className="flex flex-col items-center justify-center text-center px-4 py-24 bg-gradient-to-b from-fd-muted/30 to-transparent">
         <div className="flex items-center gap-3 mb-6">
-          <img src="/logo_foxblaze.svg" alt="FoxBlaze Logo" className="w-16 h-16 rounded-full" />
+          <img src="/logo.png" alt="FoxBlaze Logo" className="w-20 h-20 object-contain" />
         </div>
         <h1 className="text-4xl md:text-6xl font-bold mb-6 tracking-tight">
-          FoxBlaze Data Hub
+          FoxBlaze Trading Bot
         </h1>
         <p className="text-xl text-fd-muted-foreground max-w-2xl mb-10 leading-relaxed font-medium">
-          The premier non-custodial automated trading bot for Hyperliquid. Query blockchain data, execute gasless trades, and automate your strategies with ease.
+          A high-performance trading & order management bot powered by Hyperliquid liquidity, executed through a minimalist Telegram interface. Access advanced trading tools and exclusive signals backed by data from high-winrate traders.
         </p>
         <div className="flex items-center gap-4">
           <Link 
             href="/docs/getting-started" 
             className="px-6 py-3 bg-fd-primary text-primary-foreground font-semibold rounded-full hover:opacity-90 transition-opacity"
           >
-            Start building
+            Start Trading
           </Link>
           <Link 
             href="/docs" 
@@ -40,39 +45,39 @@ export default function HomePage() {
             <div className="bg-fd-background rounded-xl w-12 h-12 flex items-center justify-center mb-6 border border-fd-border group-hover:border-fd-primary/50 text-fd-primary">
               <Rocket className="w-6 h-6" />
             </div>
-            <h3 className="text-xl font-bold mb-3">Quick Start</h3>
+            <h3 className="text-xl font-bold mb-3">Telegram Execution</h3>
             <p className="text-fd-muted-foreground leading-relaxed">
-              Create your non-custodial wallet and make your first gasless USDC deposit on the Hyperliquid L1.
+              Execute market and limit orders instantly through a minimalist, lightning-fast Telegram interface without managing private keys.
             </p>
           </Link>
 
           <Link href="/docs/trading" className="group p-8 rounded-2xl border border-fd-border bg-fd-card hover:border-fd-primary/50 transition-colors">
             <div className="bg-fd-background rounded-xl w-12 h-12 flex items-center justify-center mb-6 border border-fd-border group-hover:border-fd-primary/50 text-fd-primary">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-            <h3 className="text-xl font-bold mb-3">Perpetual Trading</h3>
-            <p className="text-fd-muted-foreground leading-relaxed">
-              Learn how to execute market and limit orders directly from Telegram with high-speed execution.
-            </p>
-          </Link>
-
-          <Link href="/docs/trading/risk-management" className="group p-8 rounded-2xl border border-fd-border bg-fd-card hover:border-fd-primary/50 transition-colors">
-            <div className="bg-fd-background rounded-xl w-12 h-12 flex items-center justify-center mb-6 border border-fd-border group-hover:border-fd-primary/50 text-fd-primary">
               <Shield className="w-6 h-6" />
             </div>
-            <h3 className="text-xl font-bold mb-3">Risk Management</h3>
+            <h3 className="text-xl font-bold mb-3">Advanced Management</h3>
             <p className="text-fd-muted-foreground leading-relaxed">
-              Protect your portfolio with automated Take Profit, Stop Loss, and trailing stops via FoxBlaze RiskService.
+              Manage complex positions seamlessly with automated Take Profit, Stop Loss, and robust risk management tools inside Discord or Telegram.
             </p>
           </Link>
 
-          <Link href="/docs/architecture" className="group p-8 rounded-2xl border border-fd-border bg-fd-card hover:border-fd-primary/50 transition-colors">
+          <Link href="/docs/premium" className="group p-8 rounded-2xl border border-fd-border bg-fd-card hover:border-fd-primary/50 transition-colors" style={{ background: 'linear-gradient(135deg, rgba(94,205,172,0.08) 0%, transparent 60%)' }}>
+            <div className="bg-fd-background rounded-xl w-12 h-12 flex items-center justify-center mb-6 border border-fd-border group-hover:border-fd-primary/50 text-fd-primary">
+              <Star className="w-6 h-6" />
+            </div>
+            <h3 className="text-xl font-bold mb-3">⭐ Premium</h3>
+            <p className="text-fd-muted-foreground leading-relaxed">
+              VIP signals from top traders, auto-copy execution, and higher trading limits — completely free.
+            </p>
+          </Link>
+
+          <Link href="/docs/wallet" className="group p-8 rounded-2xl border border-fd-border bg-fd-card hover:border-fd-primary/50 transition-colors">
             <div className="bg-fd-background rounded-xl w-12 h-12 flex items-center justify-center mb-6 border border-fd-border group-hover:border-fd-primary/50 text-fd-primary">
               <Cpu className="w-6 h-6" />
             </div>
-            <h3 className="text-xl font-bold mb-3">Architecture Reference</h3>
+            <h3 className="text-xl font-bold mb-3">Non-Custodial Wallet</h3>
             <p className="text-fd-muted-foreground leading-relaxed">
-              Deep dive into our robust NestJS/Prisma backend and BullMQ processing pipeline.
+              Your funds stay in your control. Trade with zero gas fees on Hyperliquid while keeping full ownership of your wallet.
             </p>
           </Link>
 

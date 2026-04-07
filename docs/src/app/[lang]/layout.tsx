@@ -20,6 +20,13 @@ export const metadata: Metadata = {
     default: 'FoxBlaze Docs - High-Performance Hyperliquid Trading Agent',
   },
   description: 'The premier non-custodial automated trading bot and multi-purpose terminal for the Hyperliquid L1.',
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '32x32' },
+      { url: '/favicon.png', sizes: '32x32', type: 'image/png' },
+    ],
+    apple: '/apple-icon.png',
+  },
   openGraph: {
     title: 'FoxBlaze Docs',
     description: 'The premier non-custodial automated trading bot on Hyperliquid.',

@@ -46,16 +46,30 @@ export class ChartHandler {
      return false;
   }
 
-  private async renderAndSendChart(ctx: Context, ticker: string, interval: string, isEdit: boolean) {
+  private async renderAndSendChart(ctx: Context, tickerInput: string, interval: string, isEdit: boolean) {
     const validIntervals = ['1m', '5m', '15m', '1h', '4h', '12h', '1d', '1w', '1M'];
     if (!validIntervals.includes(interval)) interval = '15m';
 
     let waitMsg: any = null;
     if (!isEdit) {
-       waitMsg = await ctx.reply(`⏳ Loading chart data for <b>${ticker}</b> (${interval})...`, { parse_mode: 'HTML' });
+       waitMsg = await ctx.reply(`⏳ Loading chart data for <b>${tickerInput.toUpperCase()}</b> (${interval})...`, { parse_mode: 'HTML' });
     }
 
     try {
+      const { asset, suggestions, displayName } = await this.hlInfo.findAssetFuzzy(tickerInput);
+      if (!asset) {
+         const suggStr = suggestions.length > 0 ? ` Did you mean: ${suggestions.map(s => `<code>${s}</code>`).join(', ')}?` : '';
+         const errMsg = `❌ Could not find asset matching <b>${tickerInput.toUpperCase()}</b>.${suggStr}`;
+         if (isEdit) {
+            await ctx.answerCallbackQuery({ text: `Asset not found.`, show_alert: true }).catch(() => {});
+         } else if (waitMsg) {
+            await ctx.api.editMessageText(ctx.chat!.id, waitMsg.message_id, errMsg, { parse_mode: 'HTML' });
+         }
+         return;
+      }
+      const ticker = asset.name;
+      const displayTicker = displayName || asset.name;
+
       const endTime = Date.now();
       let shiftMs = 24 * 60 * 60 * 1000; 
       if (interval === '1m') shiftMs = 2 * 60 * 60 * 1000; 
@@ -81,7 +95,19 @@ export class ChartHandler {
          return;
       }
 
-      const marketStats = markets.find(m => m.name === ticker);
+      let marketStats = markets.find(m => m.name === ticker);
+      
+      // Fallback for HIP-3 assets or assets without market data
+      if (!marketStats && candles.length > 0) {
+         const lastC = candles[candles.length - 1];
+         const firstC = candles[0];
+         const pChange = ((parseFloat(lastC.c) - parseFloat(firstC.o)) / parseFloat(firstC.o)) * 100;
+         marketStats = {
+           name: ticker,
+           markPx: lastC.c,
+           percentChange: pChange
+         } as any;
+      }
 
       // ─── Card dimensions ───
       const logicalW = 720;
@@ -106,15 +132,17 @@ export class ChartHandler {
       this.cardRenderer.drawHeader(ctx2d, {
         width: w,
         subtitle: `${interval.toUpperCase()}  I N T E R V A L`,
-        rightLabel: currentPx,
+        rightLabel: `${displayTicker}/USD`,
         rightLabelColor: BRAND.textWhite,
-        rightSubtitle: `${ticker}/USD  ${changeStr}`,
+        rightSubtitle: currentPx,
+        rightBadge: changeStr,
+        rightBadgeColor: changeColor,
       });
 
       // ─── Footer ───
       const now = new Date();
       const timeStr = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-      this.cardRenderer.drawFooter(ctx2d, w, h, `${ticker}/USD • ${interval} • Updated ${timeStr}`);
+      this.cardRenderer.drawFooter(ctx2d, w, h, `${displayTicker}/USD • ${interval} • Updated ${timeStr} • Powered by Hyperliquid`);
 
       // ─── Chart area ───
       const chartLeft = PAD + 5;
@@ -243,9 +271,9 @@ export class ChartHandler {
 
       // ─── Keyboard ───
       const kb = new InlineKeyboard();
-      kb.text('1m', `chart_${ticker}_1m`).text('5m', `chart_${ticker}_5m`).text('15m', `chart_${ticker}_15m`)
-        .text('1h', `chart_${ticker}_1h`).text('4h', `chart_${ticker}_4h`).text('1d', `chart_${ticker}_1d`).row();
-      kb.text(`⬇️ Short ${ticker}`, `trade_short_${ticker}`).text(`⬆️ Long ${ticker}`, `trade_long_${ticker}`);
+      kb.text('1m', `chart_${displayTicker}_1m`).text('5m', `chart_${displayTicker}_5m`).text('15m', `chart_${displayTicker}_15m`)
+        .text('1h', `chart_${displayTicker}_1h`).text('4h', `chart_${displayTicker}_4h`).text('1d', `chart_${displayTicker}_1d`).row();
+      kb.text(`⬇️ Short ${displayTicker}`, `trade_short_${displayTicker}`).text(`⬆️ Long ${displayTicker}`, `trade_long_${displayTicker}`);
 
       if (isEdit) {
          await ctx.editMessageMedia(

@@ -1,29 +1,35 @@
 ---
 title: Wallet Architecture
-description: Understanding the FoxBlaze non-custodial cryptography model.
+description: How FoxBlaze keeps your funds safe.
 ---
 
-FoxBlaze is a **non-custodial** trading engine built entirely on the Hyperliquid L1 app-chain. To provide a seamless "gasless" trading experience within Telegram, it operates using **Agent Keys**.
+FoxBlaze is **non-custodial** — your funds always stay in your control. Here's how it works in simple terms.
 
-## How Your Funds Stay Safe
+## Your wallet is yours
 
-When you use the `/start` command, the bot generates a standard **HD Wallet (BIP-39/BIP-44)** for you, derived from a secure master seed phrase on our servers.
+When you type `/start`, the bot creates a secure wallet on Arbitrum. Your private key is encrypted with AES-256 and never stored in plain text.
 
-### 1. AES-256 Encryption
-The generated private key is never stored in plain text. It is encrypted simultaneously using AES-256 before being inserted into the database.
+## How trading works safely
 
-### 2. The Agent Key System
-FoxBlaze does **not** trade using your main wallet's private signature. Instead, it generates a secondary **Agent Key** specific to the bot. 
-During the initial setup, a one-time transaction is signed by your main wallet (which requires the initial 10 USDC deposit on Arbitrum) to authorize this Agent Key. 
+FoxBlaze uses a system called **Agent Keys** from Hyperliquid:
 
-From then on, the Bot only holds and uses the **Agent Key**, which possesses permission to execute trades on your behalf.
-- The Agent Key **can** open and close positions, and place conditional orders (TP/SL).
-- The Agent Key **cannot** withdraw your funds back to the L1 (Arbitrum) or external addresses.
+- **Your main wallet** holds your funds and controls withdrawals.
+- **The Agent Key** is a separate key that can only place trades — it **cannot** withdraw your money.
 
-This ensures that even if the bot's temporary memory were compromised, your funds are permanently locked to your actual wallet address which only you control the recovery phrase to (if exported, *feature coming soon*).
+Think of it like giving someone permission to trade on your behalf, but they can never take your money out.
 
-## High-Performance Execution
+## What the Agent Key can do
 
-By leveraging Hyperliquid API's Agent flow, FoxBlaze executes all trades directly on the Hyperliquid network:
-- **Zero Gas Fees**: No native EVM tokens (like ETH) are required to place orders.
-- **Microsecond Latency**: Orders are executed at centralized-exchange speeds while retaining decentralized, non-custodial settlement constraints.
+| ✅ Can do | ❌ Cannot do |
+|---|---|
+| Open and close positions | Withdraw funds |
+| Place TP/SL orders | Transfer to other wallets |
+| View your balance | Access your private key |
+
+## Withdrawals
+
+When you use `/withdraw`, FoxBlaze temporarily decrypts your main key in memory to sign a secure withdrawal. Your USDC is bridged from Hyperliquid back to any Arbitrum wallet address you specify. The bot monitors the transaction and confirms when funds arrive.
+
+## Zero gas fees
+
+All trading on Hyperliquid is gasless — you don't need ETH or any other token to place orders. Only USDC is needed as margin.

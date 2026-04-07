@@ -30,4 +30,5 @@ export interface AccountState {
   availableBalance: string;
   marginUsed: string;
   totalPnl: string;
+  withdrawable: string;
 }
