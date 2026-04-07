@@ -45,7 +45,7 @@ export class StartHandler {
           .text("📥 Deposit USDC", "nav_deposit")
           .text("📊 Balance", "nav_balance").row()
           .text("📈 Chart BTC", "chart_BTC_15m")
-          .url("📖 Documentation", "https://docs.foxblaze.trade").row()
+          .url("📖 Documentation", "https://docs.foxblaze.bot/en").row()
           .text("❓ Help", "nav_help");
 
         const headerStr = existingWallet ? `✅ <b>Wallet Loaded!</b>` : `✅ <b>Registration Successful!</b>`;

@@ -14,7 +14,7 @@ const caveat = Caveat({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NODE_ENV === 'development' ? 'http://localhost:3333' : 'https://docs.foxblaze.trade'),
+  metadataBase: new URL(process.env.NODE_ENV === 'development' ? 'http://localhost:3333' : 'https://docs.foxblaze.bot/en'),
   title: {
     template: '%s | FoxBlaze',
     default: 'FoxBlaze Docs - High-Performance Hyperliquid Trading Agent',
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'FoxBlaze Docs',
     description: 'The premier non-custodial automated trading bot on Hyperliquid.',
-    url: 'https://docs.foxblaze.trade',
+    url: 'https://docs.foxblaze.bot/en',
     siteName: 'FoxBlaze Documentation',
     locale: 'en_US',
     type: 'website',

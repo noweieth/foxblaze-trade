@@ -39,7 +39,7 @@ export class DepositHandler {
         const equityUsdc = parseFloat(accountState.equity).toFixed(2);
 
         const kb = new InlineKeyboard()
-          .url("📖 Docs", "https://docs.foxblaze.trade")
+          .url("📖 Docs", "https://docs.foxblaze.bot/en")
           .text("🔄 I have completed my deposit", "deposit_refresh");
 
         await ctx.reply(

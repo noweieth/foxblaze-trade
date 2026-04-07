@@ -35,7 +35,7 @@ export class HelpHandler {
         `⚡ <i>Powered by Hyperliquid L1 • Zero-Gas Deposit</i>`;
 
       const kb = new InlineKeyboard()
-        .url("📖 Full Documentation", "https://docs.foxblaze.trade").row()
+        .url("📖 Full Documentation", "https://docs.foxblaze.bot/en").row()
         .text("📈 Chart", "chart_BTC_15m")
         .text("💰 Balance", "nav_balance")
         .text("⬆️ Trade", "nav_long");
