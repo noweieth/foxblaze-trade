@@ -214,10 +214,11 @@ export class PositionHandler {
       // Build inline buttons grouped
       const kb = new InlineKeyboard();
       for (let i = 0; i < openPositions.length; i++) {
-        kb.text(`✖️ ${openPositions[i].asset}`, `pos_close_${openPositions[i].asset}`);
-        if ((i + 1) % 3 === 0) kb.row(); 
+        const asset = openPositions[i].asset;
+        kb.text(`✖️ Close ${asset}`, `pos_close_${asset}`);
+        kb.text(`📸 Flex ${asset}`, `pos_flex_${asset}`);
+        kb.row(); 
       }
-      if (openPositions.length % 3 !== 0) kb.row();
 
       if (openPositions.length > 1) {
         kb.text("❌ CLOSE ALL", "pos_close_ALL");
@@ -533,7 +534,7 @@ export class PositionHandler {
           exit: trade.closePrice || 0,
           size: sizeFloat,
           pnl: trade.pnl || 0,
-          roe: roe * 100, // Card Renderer Expects raw roe, Wait let's check
+          roe: roe, // Fixed: Card Renderer internally multiplies by 100
           hideProfit: isHide
       });
 
@@ -553,6 +554,95 @@ export class PositionHandler {
           }
       } catch(e) {}
 
+      return true;
+    }
+
+    if (cbData.startsWith('pos_flex_') || cbData.startsWith('pos_flexhide_') || cbData.startsWith('pos_flexshow_')) {
+      const isHide = cbData.startsWith('pos_flexhide_');
+      let asset = '';
+      if (cbData.startsWith('pos_flexhide_')) asset = cbData.replace('pos_flexhide_', '');
+      else if (cbData.startsWith('pos_flexshow_')) asset = cbData.replace('pos_flexshow_', '');
+      else asset = cbData.replace('pos_flex_', '');
+
+      const user = await this.userService.findByTelegramId(telegramId);
+      if (!user) return true;
+      const wallet = await this.walletService.getWalletByUserId(user.id);
+      if (!wallet) return true;
+
+      // Don't alert if we are just switching mode, to avoid aggressive popups
+      if (cbData.startsWith('pos_flex_')) {
+         await ctx.answerCallbackQuery({ text: `📸 Generating Flex Card for ${asset}...` });
+      }
+
+      const positions = await this.hlInfo.getPositions(wallet.address);
+      const pos = positions.find(p => p.asset === asset);
+      
+      if (!pos || parseFloat(pos.size) === 0) {
+         if (cbData.startsWith('pos_flex_')) {
+             await ctx.reply(`❌ Position for <b>${asset}</b> is no longer active.`, { parse_mode: 'HTML' });
+         } else {
+             await ctx.answerCallbackQuery({ text: `Position is closed`, show_alert: true });
+         }
+         return true;
+      }
+      
+      const entryPrice = parseFloat(pos.entryPrice);
+      const sizeFloat = Math.abs(parseFloat(pos.size));
+      const leverage = pos.leverage || 1;
+      const initialMargin = (sizeFloat * entryPrice) / leverage;
+      const uPnl = parseFloat(pos.unrealizedPnl);
+      const roe = initialMargin > 0 ? (uPnl / initialMargin) : 0;
+      
+      const isLong = pos.side === 'long';
+      let markPrice = entryPrice;
+      if (sizeFloat > 0) {
+         markPrice = isLong ? (entryPrice + uPnl / sizeFloat) : (entryPrice - uPnl / sizeFloat);
+      }
+
+      let username = 'TRADER';
+      if (this.botInstance) {
+          try {
+             const chatData = await this.botInstance.api.getChat(String(telegramId));
+             username = chatData.username || chatData.first_name || 'TRADER';
+          } catch(e) {}
+      }
+
+      const buffer = await this.cardRenderer.generateNewClosedPositionBuffer(this.botInstance, {
+          telegramId,
+          username,
+          asset,
+          side: isLong ? 'LONG' : 'SHORT',
+          leverage,
+          entry: entryPrice,
+          exit: markPrice,
+          size: sizeFloat,
+          pnl: uPnl,
+          roe: roe,
+          hideProfit: isHide
+      });
+
+      const pnlSign = uPnl >= 0 ? '+' : '';
+      const roeSign = roe >= 0 ? '+' : '';
+      
+      const keyboard = new InlineKeyboard()
+         .text(isHide ? "👀 Show Profit" : "🙈 Hide Profit", isHide ? `pos_flexshow_${asset}` : `pos_flexhide_${asset}`);
+
+      if (cbData.startsWith('pos_flex_')) {
+          await ctx.replyWithPhoto(new InputFile(buffer), { 
+              caption: `🔥 <b>Active Position PnL</b>\n\n<b>${asset} ${isLong ? 'LONG' : 'SHORT'} ${leverage}x</b>\nUnrealized PNL: <b>${pnlSign}$${Math.abs(uPnl).toFixed(2)}</b> (${roeSign}${(roe*100).toFixed(2)}%)`,
+              parse_mode: 'HTML',
+              reply_markup: keyboard
+          });
+      } else {
+          try {
+              if (ctx.callbackQuery?.message && 'photo' in ctx.callbackQuery.message) {
+                  await ctx.editMessageMedia(
+                     { type: 'photo', media: new InputFile(buffer) },
+                     { reply_markup: keyboard }
+                  );
+              }
+          } catch(e) {}
+      }
       return true;
     }
 
