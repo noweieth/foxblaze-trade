@@ -73,7 +73,7 @@ export class HlExchangeService {
     const builderAddress = this.config.get<string>('HYPERLIQUID_MASTER_ADDRESS');
     const builderFeeRate = parseInt(this.config.get<string>('BUILDER_FEE_TENTHS_BPS') || '15', 10);
     
-    // Slippage 3% từ mark price, rounded 5 sig figs
+    // Slippage 3% from mark price, rounded 5 sig figs
     const p = this.slippagePrice(params.markPx, params.isBuy);
     
     return await client.order({
@@ -84,6 +84,33 @@ export class HlExchangeService {
         s: params.size,
         r: false,
         t: { limit: { tif: "Ioc" } }
+      }],
+      grouping: "na",
+      builder: builderAddress ? { b: builderAddress as `0x${string}`, f: builderFeeRate } : undefined
+    });
+  }
+
+  async placeLimitOrder(params: { agentKey: string, vaultAddress: string, asset: number, isBuy: boolean, size: string, leverage: number, limitPx: string }) {
+    const agentWallet = new ethers.Wallet(params.agentKey);
+    const client = new ExchangeClient({ 
+      wallet: agentWallet, 
+      transport: this.transport
+    });
+    
+    const builderAddress = this.config.get<string>('HYPERLIQUID_MASTER_ADDRESS');
+    const builderFeeRate = parseInt(this.config.get<string>('BUILDER_FEE_TENTHS_BPS') || '15', 10);
+    
+    // Exact limit price, rounded to 5 sig figs for Hyperliquid
+    const p = this.roundTo5SigFigs(parseFloat(params.limitPx));
+    
+    return await client.order({
+      orders: [{
+        a: params.asset,
+        b: params.isBuy,
+        p,
+        s: params.size,
+        r: false,
+        t: { limit: { tif: "Gtc" } }
       }],
       grouping: "na",
       builder: builderAddress ? { b: builderAddress as `0x${string}`, f: builderFeeRate } : undefined
@@ -163,8 +190,8 @@ export class HlExchangeService {
   }
 
   /**
-   * Tính giá slippage động: ±3% từ giá thực, round 5 significant figures.
-   * Buy → giá cao hơn (chấp nhận fill cao), Sell → giá thấp hơn.
+   * Calculate dynamic slippage price: ±3% from real price, round 5 significant figures.
+   * Buy → higher price (accept high fill), Sell → lower price.
    */
   private slippagePrice(markPx: number, isBuy: boolean): string {
     const slippage = isBuy ? 1.03 : 0.97;

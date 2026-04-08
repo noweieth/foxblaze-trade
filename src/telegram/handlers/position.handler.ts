@@ -4,6 +4,7 @@ import { HlInfoService } from '../../hyperliquid/hl-info.service';
 import { WalletService } from '../../wallet/wallet.service';
 import { TradeService } from '../../trade/trade.service';
 import { UserService } from '../../user/user.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { CardRenderer, BRAND } from '../card-renderer.service';
 import { loadImage } from 'canvas';
 import * as path from 'path';
@@ -20,6 +21,7 @@ export class PositionHandler {
     private readonly walletService: WalletService,
     private readonly tradeService: TradeService,
     private readonly userService: UserService,
+    private readonly prisma: PrismaService,
     private readonly cardRenderer: CardRenderer
   ) {}
 
@@ -52,34 +54,29 @@ export class PositionHandler {
 
     AppEvents.on('POSITION_CLOSED_SUCCESS', async (data: any) => {
        try {
-           const { chatId, messageId, asset, side, leverage, entry, exit, pnl, roe } = data;
+           const { chatId, messageId, tradeId, asset, side, leverage, entry, exit, size, pnl, roe } = data;
            
-           // Generate the beautiful PNL card
-           const w = 1000;
-           const h = 1000;
-           const { canvas, ctx: ctx2d } = this.cardRenderer.createCard(w, h);
-
+           let username = 'TRADER';
            try {
-               const bgPath = path.join(process.cwd(), 'public', 'background_simple.svg');
-               const bgImage = await loadImage(bgPath);
-               ctx2d.drawImage(bgImage, 0, 0, w, h);
-           } catch (e) {
-               this.logger.error("Failed to load background SVG for PNL Card", e);
-           }
+              if (this.botInstance) {
+                 const chatData = await this.botInstance.api.getChat(chatId);
+                 username = chatData.username || chatData.first_name || 'TRADER';
+              }
+           } catch(e) {}
 
-           this.cardRenderer.drawClosedPositionCard(ctx2d, {
-               width: w,
-               height: h,
-               asset,
-               side: side === 'long' ? 'LONG' : 'SHORT',
-               leverage,
-               entry,
-               exit,
-               pnl,
-               roe
+           const buffer = await this.cardRenderer.generateNewClosedPositionBuffer(this.botInstance, {
+              telegramId: BigInt(chatId),
+              username,
+              asset,
+              side: side === 'long' ? 'LONG' : 'SHORT',
+              leverage,
+              entry,
+              exit,
+              size,
+              pnl,
+              roe,
+              hideProfit: false
            });
-
-           const buffer = this.cardRenderer.toBuffer(canvas);
 
            // Try to delete the old "⏳ Sending request..." message
            if (messageId && this.botInstance) {
@@ -94,15 +91,16 @@ export class PositionHandler {
            if (this.botInstance) {
                const pnlSign = pnl >= 0 ? '+' : '';
                const roeSign = roe >= 0 ? '+' : '';
+               const keyboard = new InlineKeyboard()
+                  .text("🙈 Hide Profit", `pnl_hide_${tradeId}`);
+
                await this.botInstance.api.sendPhoto(chatId, new InputFile(buffer), { 
                    caption: `✅ <b>Position Closed</b>\n\n<b>${asset} ${side.toUpperCase()} ${leverage}x</b>\nRealized PNL: <b>${pnlSign}$${Math.abs(pnl).toFixed(2)}</b> (${roeSign}${Math.abs(roe).toFixed(2)}%)`,
-                   parse_mode: 'HTML'
+                   parse_mode: 'HTML',
+                   reply_markup: keyboard
                });
            }
 
-           // After sending the PNL card, we should also emit a background refresh of positions (without popup)
-           // But actually sending positions here might clutter the chat right after the beautiful card
-           // So we'll skip sending the full active positions list to keep it clean.
        } catch (e: any) {
            this.logger.error(`AppEvents POSITION_CLOSED_SUCCESS error: ${e.message}`);
        }
@@ -156,7 +154,7 @@ export class PositionHandler {
         };
       }));
 
-      // Tính tổng PnL 
+      // Calculate total PnL
       const totalPnl = positionsData.reduce((acc, p) => acc + p.uPnl, 0);
       const isProfit = totalPnl >= 0;
       const pnlColor = isProfit ? BRAND.profitGreen : BRAND.lossRed;
@@ -283,7 +281,7 @@ export class PositionHandler {
 
     const assetTicker = parts[1].toUpperCase();
     
-    // Nếu là lệnh "/close all" sẽ được xử lý riêng bên ngoài chuẩn bị này
+    // If the command is "/close all", it will be processed externally
     if (assetTicker === 'ALL') {
        return { user, wallet, asset: 'ALL', params: parts, pos: null, meta: null };
     }
@@ -338,7 +336,7 @@ export class PositionHandler {
        return;
     }
 
-    // Đơn lẻ
+    // Individual
     const waitMsg = await ctx.reply(`⏳ Closing active position for <b>${data.asset}</b> (Size: ${data.pos.size})...`, { parse_mode: 'HTML' });
     
     await this.tradeService.queueClosePosition({
@@ -489,6 +487,72 @@ export class PositionHandler {
     if (cbData.startsWith('pos_sl_')) {
       const asset = cbData.replace('pos_sl_', '');
       await ctx.answerCallbackQuery({ text: `Type: /sl ${asset} <price>`, show_alert: true });
+      return true;
+    }
+
+    if (cbData.startsWith('pnl_hide_') || cbData.startsWith('pnl_show_')) {
+      const isHide = cbData.startsWith('pnl_hide_');
+      const tradeId = parseInt(cbData.replace(isHide ? 'pnl_hide_' : 'pnl_show_', ''), 10);
+      
+      const trade = await this.prisma.trade.findUnique({ where: { id: tradeId } });
+      if (!trade) {
+         await ctx.answerCallbackQuery({ text: "Trade not found", show_alert: true });
+         return true;
+      }
+      
+      const user = await this.userService.findByTelegramId(telegramId);
+      if (!user) return true;
+      
+      let username = 'TRADER';
+      try {
+         if (this.botInstance) {
+             const chatData = await this.botInstance.api.getChat(String(telegramId));
+             username = chatData.username || chatData.first_name || 'TRADER';
+         }
+      } catch(e) {}
+      
+      const sizeFloat = parseFloat(trade.size.toString());
+      const leverage = trade.leverage || 1;
+      const initialMargin = (sizeFloat * (trade.entryPrice || 0)) / leverage;
+      const roe = initialMargin > 0 && trade.pnl ? (trade.pnl / initialMargin) : 0;
+      
+      let assetName = trade.asset.toString();
+      try {
+         const allAssets = await this.hlInfo.getAllAssets();
+         const assetMeta = allAssets.find(a => a.assetId === trade.assetId || a.assetId === parseInt(trade.asset));
+         if (assetMeta) assetName = assetMeta.name;
+      } catch(e) {}
+
+      const buffer = await this.cardRenderer.generateNewClosedPositionBuffer(this.botInstance, {
+          telegramId,
+          username,
+          asset: assetName,
+          side: trade.side === 'long' ? 'LONG' : 'SHORT',
+          leverage,
+          entry: trade.entryPrice || 0,
+          exit: trade.closePrice || 0,
+          size: sizeFloat,
+          pnl: trade.pnl || 0,
+          roe: roe * 100, // Card Renderer Expects raw roe, Wait let's check
+          hideProfit: isHide
+      });
+
+      const pnlSign = (trade.pnl || 0) >= 0 ? '+' : '';
+      const roeSign = roe >= 0 ? '+' : '';
+      const keyboard = new InlineKeyboard()
+         .text(isHide ? "👀 Show Profit" : "🙈 Hide Profit", isHide ? `pnl_show_${tradeId}` : `pnl_hide_${tradeId}`);
+
+      try {
+          if (ctx.callbackQuery?.message && 'photo' in ctx.callbackQuery.message) {
+              await ctx.editMessageMedia(
+                 { type: 'photo', media: new InputFile(buffer) },
+                 { reply_markup: keyboard }
+              );
+              // Wait editMessageCaption might conflict with editMessageMedia? We can just pass caption in editMessageMedia!
+              /* caption is passed inside media object for InputMediaPhoto */
+          }
+      } catch(e) {}
+
       return true;
     }
 

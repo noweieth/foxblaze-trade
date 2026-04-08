@@ -16,40 +16,31 @@ export class TestHandler {
     bot.command('testclose', async (ctx: Context) => {
       const waitMsg = await ctx.reply("⏳ Generating PnL card...");
       
-      // 1000x1000 to match SVG background exactly (1:1)
-      const w = 1000;
-      const h = 1000;
-      const { canvas, ctx: ctx2d } = this.cardRenderer.createCard(w, h);
+      const pnl = 100.40;
+      const roe = 0.242; // +24.2%
 
-      // Draw SVG background — exact fit, no cropping
-      try {
-         const bgPath = path.join(process.cwd(), 'public', 'background_simple.svg');
-         const bgImage = await loadImage(bgPath);
-         ctx2d.drawImage(bgImage, 0, 0, w, h);
-      } catch (e) {
-         this.logger.error("Failed to load background SVG", e);
+      let username = 'DEAN';
+      if (ctx.from) {
+         username = ctx.from.username || ctx.from.first_name || 'DEAN';
       }
 
-      const pnl = 373.75;
-      const roe = 72.50;
-
-      this.cardRenderer.drawClosedPositionCard(ctx2d, {
-        width: w,
-        height: h,
-        asset: 'ETH',
-        side: 'LONG',
-        leverage: 15,
-        entry: 3100.50,
-        exit: 3250.00,
+      const buffer = await this.cardRenderer.generateNewClosedPositionBuffer(bot, {
+        telegramId: BigInt(ctx.from?.id || 0),
+        username: username,
+        asset: 'Gold',
+        side: 'long',
+        leverage: 10,
+        entry: 41145,
+        exit: 45123,
+        size: 415,
         pnl: pnl,
         roe: roe,
+        hideProfit: false
       });
-
-      const buffer = this.cardRenderer.toBuffer(canvas);
 
       await ctx.api.deleteMessage(ctx.chat!.id, waitMsg.message_id);
       await ctx.replyWithPhoto(new InputFile(buffer), { 
-        caption: `✅ <b>Position Closed</b>\n\n<b>ETH LONG 15x</b>\nRealized PNL: <b>+$373.75</b> (+72.50%)`,
+        caption: `✅ <b>Position Closed</b>\n\n<b>Gold LONG 10x</b>\nRealized PNL: <b>+$100.40</b> (+24.20%)`,
         parse_mode: 'HTML'
       });
     });

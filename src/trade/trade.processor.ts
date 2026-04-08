@@ -26,7 +26,7 @@ export class TradeProcessor extends WorkerHost {
   async process(job: Job<any, any, string>): Promise<any> {
     this.logger.log(`[Worker] Starting Job ID: ${job.id} | Type: ${job.name}`);
     
-    // Lấy telegramId để gửi thông báo
+    // Retrieve telegramId for sending notifications
     const user = await this.prisma.user.findUnique({ where: { id: job.data.userId } });
     const chatId = user?.telegramId;
     const wallet = await this.walletService.getWalletByUserId(job.data.userId);
@@ -83,7 +83,7 @@ export class TradeProcessor extends WorkerHost {
 
   private async handleOpenPosition(data: any) {
     this.logger.log(`[Debug] Data from Job: ${JSON.stringify(data)}`);
-    const { userId, asset, isBuy, size, leverage, tp, sl, signalId } = data;
+    const { userId, asset, isBuy, size, leverage, limitPrice, tp, sl, signalId } = data;
     
     this.logger.log(`[Debug] Checking/Activating wallet userId=${userId}`);
     const wallet = await this.ensureHlRegistration(userId);
@@ -93,45 +93,59 @@ export class TradeProcessor extends WorkerHost {
     const vaultAddress = wallet.address;
 
     try {
-      // 1. Lấy thông tin giá hiện tại và params hiển thị số thập phân của coin
+      // 1. Retrieve current price and decimal formatting parameters for the asset
       const allAssets = await this.hlInfo.getAllAssets();
       const assetMeta = allAssets.find(a => a.assetId === asset);
-      if (!assetMeta) throw new Error(`Không tìm thấy Asset Meta cho ID ${asset}`);
+      if (!assetMeta) throw new Error(`Asset Meta not found for ID ${asset}`);
 
       const markets = await this.hlInfo.getMarketsData();
       const market = markets.find(m => m.name === assetMeta.name);
-      if (!market) throw new Error(`Không tìm thấy giá Market cho ${assetMeta.name}`);
-
+      if (!market) throw new Error(`Market price not found for ${assetMeta.name}`);
+      
       const markPx = parseFloat(market.markPx);
+
+      // Calculate Base Token Size: Size = (Margin * Leverage) / ExecPrice
       const sizeUsdc = parseFloat(size);
+      const executionPrice = limitPrice ? parseFloat(limitPrice) : parseFloat(market.markPx);
+      let baseSize = (sizeUsdc * leverage) / executionPrice;
       
-      // Tính toán Size theo Base Token: Size = (Ký quỹ * Đòn bẩy) / Giá
-      let baseSize = (sizeUsdc * leverage) / markPx;
-      
-      // Bo tròn chính xác theo szDecimals cố định của sàn
+      // Round to exact szDecimals required by exchange
       const baseSizeStr = baseSize.toFixed(assetMeta.szDecimals);
 
-      this.logger.log(`[L1 Action] Setting leverage ${leverage}x cho asset ${asset}`);
+      this.logger.log(`[L1 Action] Setting leverage ${leverage}x for asset ${asset}`);
       await this.hlExchange.setLeverage({ agentKey, vaultAddress, asset, leverage, isCross: true });
 
-      this.logger.log(`[L1 Action] Đặt Market Order ${asset} với baseSize=${baseSizeStr} (USDC=${sizeUsdc})`);
-      await this.hlExchange.placeMarketOrder({
-        agentKey,
-        vaultAddress,
-        asset,
-        isBuy,
-        size: baseSizeStr,
-        leverage,
-        markPx
-      });
+      if (limitPrice) {
+        this.logger.log(`[L1 Action] Place Limit Order ${asset} at ${limitPrice} with baseSize=${baseSizeStr}`);
+        await this.hlExchange.placeLimitOrder({
+          agentKey,
+          vaultAddress,
+          asset,
+          isBuy,
+          size: baseSizeStr,
+          leverage,
+          limitPx: limitPrice
+        });
+      } else {
+        this.logger.log(`[L1 Action] Place Market Order ${asset} with baseSize=${baseSizeStr} (USDC=${sizeUsdc})`);
+        await this.hlExchange.placeMarketOrder({
+          agentKey,
+          vaultAddress,
+          asset,
+          isBuy,
+          size: baseSizeStr,
+          leverage,
+          markPx: parseFloat(market.markPx)
+        });
+      }
 
       if (tp) {
-        this.logger.log(`[L1 Action] Đặt lệnh Take Profit tại ${tp}`);
+        this.logger.log(`[L1 Action] Place Take Profit at ${tp}`);
         await this.hlExchange.placeTakeProfit({ agentKey, vaultAddress, asset, size, triggerPrice: tp, isBuy });
       }
 
       if (sl) {
-        this.logger.log(`[L1 Action] Đặt lệnh Stop Loss tại ${sl}`);
+        this.logger.log(`[L1 Action] Place Stop Loss at ${sl}`);
         await this.hlExchange.placeStopLoss({ agentKey, vaultAddress, asset, size, triggerPrice: sl, isBuy });
       }
 
@@ -153,9 +167,9 @@ export class TradeProcessor extends WorkerHost {
         } as any
       });
       
-      this.logger.log(`✅ Hoàn thành OPEN_POSITION cho user ${userId}!`);
+      this.logger.log(`✅ Completed OPEN_POSITION for user ${userId}!`);
     } catch (e: any) {
-      this.logger.error(`Lỗi Open Position: ${e.message}`);
+      this.logger.error(`Open Position Error: ${e.message}`);
       throw e;
     }
   }
@@ -164,7 +178,7 @@ export class TradeProcessor extends WorkerHost {
     const { userId, asset, size, currentSide, messageId, chatId, isEmergency } = data;
     const wallet = await this.ensureHlRegistration(userId);
     
-    // Lấy tên coin để hiển thị thông báo
+    // Get coin name for notification display
     const allAssets = await this.hlInfo.getAllAssets();
     const assetMeta = allAssets.find(a => a.assetId === asset);
     
@@ -175,13 +189,13 @@ export class TradeProcessor extends WorkerHost {
     const agentKey = await this.walletService.getDecryptedAgentKey(userId);
     const vaultAddress = wallet.address;
 
-    // Lấy mark price cho slippage
+    // Get mark price for slippage
     const markets = await this.hlInfo.getMarketsData();
     const market = assetMeta ? markets.find(m => m.name === assetMeta.name) : null;
     const markPx = market ? parseFloat(market.markPx) : 0;
     
-    this.logger.log(`[L1 Action] Đóng Market Position cho asset ${asset} tại markPx=${markPx}`);
-    // Đóng vị thế (đợi API confirm)
+    this.logger.log(`[L1 Action] Close Market Position for asset ${asset} at markPx=${markPx}`);
+    // Close position (await API confirmation)
     await this.hlExchange.closePosition({ agentKey, vaultAddress, asset, size, currentSide, markPx });
     
     await this.hlInfo.invalidateUserCache(vaultAddress);
@@ -219,18 +233,20 @@ export class TradeProcessor extends WorkerHost {
           AppEvents.emit('POSITION_CLOSED_SUCCESS', {
              chatId,
              messageId,
+             tradeId: t.id,
              asset: assetMeta.name,
              side: currentSide,
              leverage,
              entry: entryPrice,
              exit: markPx,
+             size: sizeFloat,
              pnl: uPnl,
              roe: roe
           });
        }
     }
     
-    this.logger.log(`✅ Hoàn thành CLOSE_POSITION cho user ${userId}! Cập nhật ${openTrades.length} trades trong DB.`);
+    this.logger.log(`✅ Completed CLOSE_POSITION for user ${userId}! Updated ${openTrades.length} trades in DB.`);
   }
 
   private async handleSetTpSl(data: any) {
@@ -241,16 +257,16 @@ export class TradeProcessor extends WorkerHost {
     const vaultAddress = wallet.address;
 
     if (tp) {
-      this.logger.log(`[L1 Action] Đặt TP tại $${tp} cho asset ${asset}`);
+      this.logger.log(`[L1 Action] Place TP at $${tp} for asset ${asset}`);
       await this.hlExchange.placeTakeProfit({ agentKey, vaultAddress, asset, size, triggerPrice: tp, isBuy });
     }
     if (sl) {
-      this.logger.log(`[L1 Action] Đặt SL tại $${sl} cho asset ${asset}`);
+      this.logger.log(`[L1 Action] Place SL at $${sl} for asset ${asset}`);
       await this.hlExchange.placeStopLoss({ agentKey, vaultAddress, asset, size, triggerPrice: sl, isBuy });
     }
 
     await this.hlInfo.invalidateUserCache(vaultAddress);
-    this.logger.log(`✅ Hoàn thành SET_TP_SL cho user ${userId}!`);
+    this.logger.log(`✅ Completed SET_TP_SL for user ${userId}!`);
   }
 
   private async handleCancelOrder(data: any) {
@@ -264,6 +280,6 @@ export class TradeProcessor extends WorkerHost {
     await this.hlExchange.cancelOrder({ agentKey, vaultAddress, asset, orderId });
 
     await this.hlInfo.invalidateUserCache(vaultAddress);
-    this.logger.log(`✅ Hoàn thành CANCEL_ORDER #${orderId} cho user ${userId}!`);
+    this.logger.log(`✅ Completed CANCEL_ORDER #${orderId} for user ${userId}!`);
   }
 }

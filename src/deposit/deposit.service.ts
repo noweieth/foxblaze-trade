@@ -29,29 +29,29 @@ export class DepositService implements OnModuleInit {
     this.usdcContract = new ethers.Contract(this.USDC_ADDRESS, this.USDC_ABI, this.provider);
   }
 
-  // Chức năng quét thủ công khi user bấm nút
+  // Manual scan function when user clicks button
   async checkUserDeposit(userId: number, address: string): Promise<{ success: boolean; amount: number; message: string }> {
     try {
       const balanceBigInt = await this.usdcContract.balanceOf(address);
       const balanceNum = Number(ethers.formatUnits(balanceBigInt, 6));
 
       if (balanceNum >= 1.0) {
-        this.logger.log(`[Manual Scan] Phát hiện ${balanceNum} USDC của User ${userId}`);
+        this.logger.log(`[Manual Scan] Detected ${balanceNum} USDC for User ${userId}`);
         
         await this.depositQueue.add('AUTO_DEPOSIT', {
           userId: userId,
           userAddress: address
         } as AutoDepositJob, {
-          jobId: `deposit_${userId}_${address}_${balanceBigInt.toString()}` // Dedup an toàn
+          jobId: `deposit_${userId}_${address}_${balanceBigInt.toString()}` // Safe dedup
         });
 
-        return { success: true, amount: balanceNum, message: 'Thành công' };
+        return { success: true, amount: balanceNum, message: 'Success' };
       }
       
-      return { success: false, amount: balanceNum, message: 'Chưa đủ 1.0 USDC' };
+      return { success: false, amount: balanceNum, message: 'Insufficient balance (needs > 1.0 USDC)' };
     } catch (err: any) {
-      this.logger.error(`[Manual Scan Lỗi] ${err.message}`);
-      return { success: false, amount: 0, message: 'Lỗi hạ tầng mạng' };
+      this.logger.error(`[Manual Scan Error] ${err.message}`);
+      return { success: false, amount: 0, message: 'Network infrastructure error' };
     }
   }
 }

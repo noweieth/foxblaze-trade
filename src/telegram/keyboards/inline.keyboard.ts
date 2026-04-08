@@ -42,7 +42,12 @@ export function buildOrderPanelKeyboard(data: any): InlineKeyboard {
   }
   keyboard.text('✏️ Custom Lev', 'set_lev_custom').row();
 
-  // Row 3: TP / SL Buttons
+  // Row 3: Entry Price (Market or Limit)
+  const entryText = data.limitPrice ? `🎯 Limit @ $${data.limitPrice}` : `⚡ Market Entry`;
+  keyboard.text('⚡ Market', 'set_entry_market')
+          .text(entryText, 'set_entry_custom').row();
+
+  // Row 4: TP / SL Buttons
   const tpText = data.tp ? `🎯 TP: ${data.tp}` : '🎯 Set TP';
   const slText = data.sl ? `🛡️ SL: ${data.sl}` : '🛡️ Set SL';
   keyboard.text(tpText, 'set_tp_custom')

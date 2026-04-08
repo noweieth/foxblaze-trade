@@ -14,8 +14,9 @@ export interface TradeSessionData {
   leverage?: number;
   tp?: number | null;
   sl?: number | null;
+  limitPrice?: number | null;
   price?: number; 
-  inputMode?: 'size' | 'lev' | 'tp' | 'sl' | null;
+  inputMode?: 'size' | 'lev' | 'tp' | 'sl' | 'entry' | null;
   promptMsgId?: number;
   panelMsgId?: number;
   withdrawAddress?: string;

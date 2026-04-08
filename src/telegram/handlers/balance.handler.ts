@@ -34,8 +34,8 @@ export class BalanceHandler {
         return ctx.reply(`Your wallet is not initialized. Please type /start to set it up.`);
       }
 
-      // Xử lý kịch bản: Tiền nạp từ L1 mất 1-3 phút mới tới L2, Auto-Deposit worker gọi activateHlAccount bị tịt.
-      // Khi user gõ /balance, ta chủ động cắm lại hàm Onboard để kích hoạt nếu tiền đã về L2.
+      // Handle the scenario where L1 deposit takes 1-3 minutes to reach L2, and the Auto-Deposit worker failed to activate HL.
+      // When the user executes /balance, we actively hook into the Onboard function to activate if funds have reached L2.
       if (!wallet.isHlRegistered) {
         wallet = await this.walletService.createWalletAndOnboard(user.id);
         if (!wallet || !wallet.isHlRegistered) {

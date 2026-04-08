@@ -32,7 +32,7 @@ export class TradeHandler {
     if (!ctx.from) return;
     const telegramId = BigInt(ctx.from.id);
     
-    // Yêu cầu nhập Asset trước để làm cơ sở
+    // Require Asset input first to establish context
     await this.sessionService.set(telegramId, {
       state: 'WAITING_ASSET_INPUT',
       data: { side }
@@ -56,6 +56,7 @@ export class TradeHandler {
        maxLeverage: assetMeta.maxLeverage,
        sizeUsdc: 10,       // Default Size
        leverage: 10,       // Default Lev
+       limitPrice: null,
        tp: null,
        sl: null
     };
@@ -71,6 +72,7 @@ export class TradeHandler {
       `📊 Side: <b>${data.side.toUpperCase()}</b>\n` +
       `💰 Margin: <b>$${data.sizeUsdc}</b>\n` +
       `🚀 Leverage: <b>${data.leverage}x</b>\n` +
+      `🚪 Entry: <b>${data.limitPrice ? `Limit @ $${data.limitPrice}` : 'Market'}</b>\n` +
       `🎯 TP Price: <b>${data.tp || 'None'}</b>\n` +
       `🛡️ SL Price: <b>${data.sl || 'None'}</b>\n\n` +
       `⚡ <i>Adjust parameters or Confirm Trade.</i>`;
@@ -119,6 +121,7 @@ export class TradeHandler {
           data.maxLeverage = assetMeta.maxLeverage;
           data.sizeUsdc = 10;
           data.leverage = 10;
+          data.limitPrice = null;
           data.tp = null;
           data.sl = null;
           
@@ -129,10 +132,10 @@ export class TradeHandler {
       if (state === 'ORDER_SETUP_PANEL' && data.inputMode) {
           const val = parseFloat(text.trim());
           
-          // Xoá tin nhắn vừa nhập của User 
+          // Delete user's input message 
           try { await ctx.deleteMessage(); } catch(e) {}
           
-          // Xoá tin nhắn Prompt "Please enter..."
+          // Delete prompt message "Please enter..."
           if (data.promptMsgId) {
              try { await ctx.api.deleteMessage(ctx.chat!.id, data.promptMsgId); } catch(e) {}
              data.promptMsgId = undefined;
@@ -159,6 +162,7 @@ export class TradeHandler {
              }
              data.leverage = val;
           }
+          if (data.inputMode === 'entry') data.limitPrice = val;
           if (data.inputMode === 'tp') data.tp = val;
           if (data.inputMode === 'sl') data.sl = val;
 
@@ -172,7 +176,7 @@ export class TradeHandler {
   }
 
   async handleCallbackQuery(ctx: Context, telegramId: bigint, cbData: string) {
-    // Luôn answer để client hết xoay icon Loading
+    // Always answer to stop loading spinner on client
     try { await ctx.answerCallbackQuery(); } catch (e) {}
 
     if (cbData.startsWith('trade_long_')) {
@@ -194,10 +198,10 @@ export class TradeHandler {
 
     // Check if the callback belongs to the order panel
     const orderPanelPrefixes = [
-      'set_size_', 'set_lev_', 'set_tp_custom', 'set_sl_custom', 'cancel_trade', 'confirm_trade'
+      'set_size_', 'set_lev_', 'set_entry_market', 'set_entry_custom', 'set_tp_custom', 'set_sl_custom', 'cancel_trade', 'confirm_trade'
     ];
     if (!orderPanelPrefixes.some(prefix => cbData.startsWith(prefix))) {
-       return false; // Phải nhả cbData ra cho các Handler khác xử lý (như PositionHandler)
+       return false; // Yield cbData to other handlers (like PositionHandler)
     }
 
     const { data } = session;
@@ -217,11 +221,16 @@ export class TradeHandler {
     }
     
     // Custom Modes
-    if (['set_size_custom', 'set_lev_custom', 'set_tp_custom', 'set_sl_custom'].includes(cbData)) {
-       const mode = cbData.split('_')[1] as 'size' | 'lev' | 'tp' | 'sl';
+    if (cbData === 'set_entry_market') {
+       data.limitPrice = null;
+       data.inputMode = null;
+    }
+
+    if (['set_size_custom', 'set_lev_custom', 'set_entry_custom', 'set_tp_custom', 'set_sl_custom'].includes(cbData)) {
+       const mode = cbData.split('_')[1] as 'size' | 'lev' | 'entry' | 'tp' | 'sl';
        data.inputMode = mode;
        
-       // Force Reply Prompt UI để user biết phải nhập chứ không phải lỗi đơ
+       // Force Reply Prompt UI so user knows they need to input, not a hang
        const promptMsg = await ctx.reply(`👉 Please enter custom <b>${mode.toUpperCase()}</b> value in the chat:`, {
           parse_mode: 'HTML',
           reply_markup: { force_reply: true, selective: true }
@@ -264,6 +273,7 @@ export class TradeHandler {
                isBuy: data.side === 'long',
                size: data.sizeUsdc!.toString(),
                leverage: data.leverage!,
+               limitPrice: data.limitPrice?.toString(),
                tp: data.tp?.toString(),
                sl: data.sl?.toString()
              });

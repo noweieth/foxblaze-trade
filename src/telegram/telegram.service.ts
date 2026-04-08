@@ -70,19 +70,19 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await this.bot.api.setMyCommands(botCommands);
       await this.bot.api.setMyCommands(botCommands, { scope: { type: 'all_private_chats' } });
       await this.bot.api.setMyDescription('FoxBlaze Trading Bot - The next-gen autonomous Hyperliquid trader.\\n\\n📖 Read the manual: https://docs.foxblaze.bot/en').catch(() => {});
-      this.logger.log('Thành công set Telegram Bot Menu Commands (Default & Private Scopes)');
+      this.logger.log('Successfully set Telegram Bot Menu Commands (Default & Private Scopes)');
     } catch (e: any) {
-      this.logger.error(`Lỗi khi set commands: ${e.message}`);
+      this.logger.error(`Error setting commands: ${e.message}`);
     }
 
     try {
       this.bot.start({
         onStart: (botInfo) => {
-          this.logger.log(`🤖 Telegram Framework Khởi Động: [${botInfo.username}] in polling mode!`);
+          this.logger.log(`🤖 Telegram Framework Started: [${botInfo.username}] in polling mode!`);
         }
       });
     } catch (e: any) {
-      this.logger.error(`GrammY Bot Startup Lỗi: ${e.message}`);
+      this.logger.error(`GrammY Bot Startup Error: ${e.message}`);
     }
   }
 
@@ -91,6 +91,53 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   }
 
   private registerHandlers() {
+    // 0. Group/Private Scope Middleware
+    this.bot.use(async (ctx: Context, next) => {
+      const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
+      
+      if (isGroup) {
+        // 1. Block sensitive commands in groups
+        if (ctx.message?.text?.startsWith('/')) {
+          const rawCommand = ctx.message.text.split(' ')[0].substring(1);
+          const cmd = rawCommand.split('@')[0].toLowerCase();
+          
+          const publicCommands = ['start', 'help', 'chart', 'markets', 'info', 'pnl']; // PnL is safe to flex in groups
+          if (!publicCommands.includes(cmd)) {
+             await ctx.reply("🔒 <b>Private Command</b>\nThis action requires wallet interaction or shows sensitive data. Please DM the bot to use it.", {
+               reply_parameters: { message_id: ctx.message.message_id },
+               parse_mode: 'HTML'
+             });
+             return; // Stop execution for private commands
+          }
+        }
+        // 2. Block sensitive callback queries (button clicks) in groups
+        else if (ctx.callbackQuery && ctx.callbackQuery.data) {
+           const cbData = ctx.callbackQuery.data;
+           const isPrivateAction = 
+                 cbData.startsWith('nav_deposit') || 
+                 cbData.startsWith('nav_balance') ||
+                 cbData.startsWith('nav_long') ||
+                 cbData.startsWith('nav_short') ||
+                 cbData.startsWith('nav_withdraw') ||
+                 cbData.startsWith('nav_premium') ||
+                 cbData.startsWith('close_') ||
+                 cbData.startsWith('cancel_') ||
+                 cbData.startsWith('trade_') ||
+                 cbData.startsWith('withdraw_');
+
+           if (isPrivateAction) {
+              await ctx.answerCallbackQuery({
+                 text: '🔒 Please DM the bot to use this feature.',
+                 show_alert: true
+              });
+              return; // Stop execution
+           }
+        }
+      }
+      
+      await next();
+    });
+
     // 1. Static Command Handlers
     this.startHandler.register(this.bot);
     this.depositHandler.register(this.bot);
@@ -110,9 +157,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     // 2. FSM Fallback Message Interceptor
     this.bot.on('message:text', async (ctx: Context) => {
       if (!ctx.from || !ctx.message || !ctx.message.text) return;
-      // Tránh cướp các lệnh command (/start, /long...)
+      
+      const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
+      // Only process free text (amount, address) in Private Chat. Group chat is strictly blocked.
+      if (isGroup) return;
+
+      // Avoid hijacking commands (/start, /long...)
       if (ctx.message.text.startsWith('/')) {
-         // Nếu là /skip thì TradeHandler FSM đang chờ
+         // If /skip, TradeHandler FSM might be waiting
          if (ctx.message.text !== '/skip') return;
       }
       
@@ -148,7 +200,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       }
       
       try {
-        await ctx.answerCallbackQuery(); // Tắt vòng loading cho Nút bấm Telegram
+        await ctx.answerCallbackQuery(); // Hide loading spinner for Telegram buttons
       } catch(e) {}
     });
   }

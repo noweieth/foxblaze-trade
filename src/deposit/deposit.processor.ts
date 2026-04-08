@@ -46,7 +46,7 @@ export class DepositProcessor extends WorkerHost {
   }
 
   async process(job: Job<AutoDepositJob, any, string>): Promise<any> {
-    this.logger.log(`[Worker] Bắt đầu Job Deposit EIP-2612 Gasless: ${job.id}`);
+    this.logger.log(`[Worker] Start Deposit EIP-2612 Gasless Job: ${job.id}`);
     
     if (job.name === 'AUTO_DEPOSIT') {
       return this.handleAutoDeposit(job.data);
@@ -55,7 +55,7 @@ export class DepositProcessor extends WorkerHost {
 
   private async handleAutoDeposit(data: AutoDepositJob) {
     if (!this.relayerWallet) {
-       this.logger.warn(`RELAYER_PRIVATE_KEY chưa thiết lập. Bỏ qua lệnh nạp tự động.`);
+       this.logger.warn(`RELAYER_PRIVATE_KEY not set. Skipping auto deposit.`);
        return;
     }
 
@@ -66,13 +66,13 @@ export class DepositProcessor extends WorkerHost {
     if (balanceBigInt === 0n) return;
     
     const amount = Number(ethers.formatUnits(balanceBigInt, 6));
-    this.logger.log(`[Worker] Nạp Gasless cho User ${userId}. Số tiền USDC: ${amount}`);
+    this.logger.log(`[Worker] Gasless Deposit for User ${userId}. USDC Amount: ${amount}`);
 
     const userPrivateKey = await this.walletService.getDecryptedPrivateKey(userId);
     const userWallet = new ethers.Wallet(userPrivateKey, this.provider);
     
     try {
-      this.logger.log(`[Worker] Bơm Gas Fee L1 cho User ${userId}`);
+      this.logger.log(`[Worker] Fund L1 Gas Fee for User ${userId}`);
       const ethBalance = await this.provider.getBalance(userAddress);
       
       if (ethBalance < ethers.parseEther("0.0001")) {
@@ -83,11 +83,11 @@ export class DepositProcessor extends WorkerHost {
          await fundTx.wait();
       }
 
-      this.logger.log(`[Worker] Trigger User ${userId} tự chuyển USDC thẳng vô L1 Bridge...`);
+      this.logger.log(`[Worker] Trigger User ${userId} to transfer USDC directly to L1 Bridge...`);
       const usdcWithUser = new ethers.Contract(this.USDC_ADDRESS, ["function transfer(address, uint256) returns(bool)"], userWallet);
       
       const tx = await usdcWithUser.transfer(this.HL_BRIDGE_ADDRESS, balanceBigInt);
-      this.logger.log(`[Worker] Đang chờ confirm L1 TX: ${tx.hash}`);
+      this.logger.log(`[Worker] Waiting for L1 TX confirmation: ${tx.hash}`);
       await tx.wait();
 
       await this.prisma.deposit.create({
@@ -99,15 +99,15 @@ export class DepositProcessor extends WorkerHost {
         }
       });
       
-      // Kích hoạt lại Onboarding HL sau khi có tiền
+      // Re-trigger HL Onboarding after funding
       const wallet = await this.walletService.getWalletByUserId(userId);
       if (wallet && !wallet.isHlRegistered) {
          await this.walletService.activateHlAccount(userId, userPrivateKey, wallet.agentAddress);
       }
 
-      this.logger.log(`✅ [Worker] Nạp tự động thành công. Đã báo $${amount} khả dụng!`);
+      this.logger.log(`✅ [Worker] Auto deposit successful. $${amount} available reported!`);
     } catch (err: any) {
-      this.logger.error(`[Worker] Lỗi nạp L1: ${err.message}`);
+      this.logger.error(`[Worker] L1 Deposit Error: ${err.message}`);
       throw err;
     }
   }

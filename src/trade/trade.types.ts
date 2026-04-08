@@ -4,6 +4,7 @@ export interface OpenPositionJob {
   isBuy: boolean;
   size: string; // Size base token or usdc string ? Usually size of coin on HL
   leverage: number;
+  limitPrice?: string;
   tp?: string;
   sl?: string;
   signalId?: number;

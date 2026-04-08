@@ -19,30 +19,30 @@ export class TradeService {
 
   async queueOpenPosition(params: OpenPositionJob) {
     const wallet = await this.walletService.getWalletByUserId(params.userId);
-    if (!wallet) throw new InternalServerErrorException('Phiên giao dịch thất bại: Không tìm thấy ví người dùng!');
+    if (!wallet) throw new InternalServerErrorException('Trade session failed: User wallet not found!');
 
     const user = await this.prisma.user.findUnique({ where: { id: params.userId } });
     const isPremium = user?.isPremium || false;
 
-    // Chặn rủi ro trước khi thả vào hàng đợi (Throw Error nếu vi phạm)
+    // Block risks before queueing (Throws Error if violated)
     await this.riskService.checkSafety(wallet.address, parseFloat(params.size), params.leverage, isPremium);
 
-    this.logger.log(`[Queue] Adding OPEN_POSITION cho userId ${params.userId}`);
+    this.logger.log(`[Queue] Adding OPEN_POSITION for userId ${params.userId}`);
     await this.tradeQueue.add('OPEN_POSITION', params);
   }
 
   async queueClosePosition(params: ClosePositionJob) {
-    this.logger.log(`[Queue] Adding CLOSE_POSITION cho userId ${params.userId}`);
+    this.logger.log(`[Queue] Adding CLOSE_POSITION for userId ${params.userId}`);
     await this.tradeQueue.add('CLOSE_POSITION', params);
   }
 
   async queueSetTpSl(params: SetTpSlJob) {
-    this.logger.log(`[Queue] Adding SET_TP_SL cho userId ${params.userId}`);
+    this.logger.log(`[Queue] Adding SET_TP_SL for userId ${params.userId}`);
     await this.tradeQueue.add('SET_TP_SL', params);
   }
 
   async queueCancelOrder(params: CancelOrderJob) {
-    this.logger.log(`[Queue] Adding CANCEL_ORDER cho userId ${params.userId}`);
+    this.logger.log(`[Queue] Adding CANCEL_ORDER for userId ${params.userId}`);
     await this.tradeQueue.add('CANCEL_ORDER', params);
   }
 }

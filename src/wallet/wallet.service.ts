@@ -169,12 +169,12 @@ export class WalletService implements OnModuleInit {
 
     const userPrivateKey = this.encryption.decrypt(wallet.encryptedPrivateKey);
 
-    // Thử kích hoạt luôn nếu lỡ ví có balance, nếu không thì âm thầm bỏ qua
+    // Try to activate immediately if wallet has balance, otherwise silently ignore
     if (!wallet.isHlRegistered) {
       await this.activateHlAccount(userId, userPrivateKey, wallet.agentAddress);
     }
     
-    // Cập nhật lại state của wallet
+    // Reload fresh state of the wallet
     return await this.getWalletByUserId(userId);
   }
 }

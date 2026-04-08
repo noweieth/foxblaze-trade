@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { createCanvas, loadImage, Canvas, CanvasRenderingContext2D, Image } from 'canvas';
+import { createCanvas, loadImage, Canvas, CanvasRenderingContext2D, Image, registerFont } from 'canvas';
 import * as path from 'path';
 
 // ─── Balanced Color Palette (v7) ─────────────────────────────────
@@ -55,12 +55,30 @@ export class CardRenderer implements OnModuleInit {
   private readonly logger = new Logger(CardRenderer.name);
   private logoImg!: Image;
   private bgImg!: Image;
+  private fox1Img!: Image;
+  private fox2Img!: Image;
+  private foxTextImg!: Image;
 
   async onModuleInit() {
     const publicDir = path.resolve(process.cwd(), 'public');
+    
+    try { registerFont(path.join(publicDir, 'fonts', 'Inter-Regular.ttf'), { family: 'Inter' }); } catch(e){}
+    try { registerFont(path.join(publicDir, 'fonts', 'Inter-Medium.ttf'), { family: 'Inter', weight: '500' }); } catch(e){}
+    try { registerFont(path.join(publicDir, 'fonts', 'Inter-Bold.ttf'), { family: 'Inter', weight: 'bold' }); } catch(e){}
+    try { registerFont(path.join(publicDir, 'fonts', 'Inter-Black.ttf'), { family: 'Inter', weight: '900' }); } catch(e){}
+    try { registerFont(path.join(publicDir, 'fonts', 'Inter-Italic.ttf'), { family: 'Inter', style: 'italic' }); } catch(e){}
+    try { registerFont(path.join(publicDir, 'fonts', 'Teodor-Bold.ttf'), { family: 'Teodor', weight: 'bold' }); } catch(e){}
+    try { registerFont(path.join(publicDir, 'fonts', 'Teodor-Regular.ttf'), { family: 'Teodor' }); } catch(e){}
+
     try {
       this.logoImg = await loadImage(path.join(publicDir, 'logo_foxblaze.png'));
       this.bgImg = await loadImage(path.join(publicDir, 'bg_card.png'));
+      try {
+         this.fox1Img = await loadImage(path.join(publicDir, 'fox_1.png'));
+         this.fox2Img = await loadImage(path.join(publicDir, 'fox_2.png'));
+         this.foxTextImg = await loadImage(path.join(publicDir, 'foxblaze_text.png'));
+         this.logger.log('✅ New PnL assets loaded (fox_1, fox_2, foxblaze_text)');
+      } catch(e) {}
       this.logger.log('✅ Brand assets loaded (logo_foxblaze.png, bg_card.png)');
     } catch (e: any) {
       this.logger.error(`⚠️ Failed to load brand assets: ${e.message}. Cards will render without images.`);
@@ -779,127 +797,330 @@ export class CardRenderer implements OnModuleInit {
   }
 
   /**
-   * Full-card renderer for closed position.
-   * Designed for 1000x1000 canvas with SVG background already drawn.
-   * Modern, minimalist, focused layout.
+   * Reference-matched Full-card renderer for closed position.
+   * Size: 1024 x 512
    */
-  drawClosedPositionCard(
+  async drawNewClosedPositionCard(
     ctx: CanvasRenderingContext2D,
     opts: {
       width: number;
       height: number;
+      username: string;
       asset: string;
       side: string;
       leverage: number;
       entry: number;
       exit: number;
+      size: number;
       pnl: number;
       roe: number;
+      hideProfit: boolean;
+      avatarImage?: Image | null;
+      assetLogo?: Image | null;
     }
-  ): void {
+  ): Promise<void> {
     const w = opts.width;
     const h = opts.height;
     const isProfit = opts.pnl >= 0;
-    const color = isProfit ? BRAND.profitGreen : BRAND.lossRed;
-    const sign = isProfit ? '+' : '';
+    
+    const tealProfit = '#2EEBA5';
+    const redLoss = '#FF4444';
 
     ctx.save();
 
-    // ─── HEADER (centered) ────────────────────────────────────────
-    const PAD = 48;
+    // ─── Background ───────────────
+    ctx.fillStyle = '#05110E';
+    ctx.fillRect(0, 0, w, h);
 
-    ctx.textBaseline = 'middle';
-    ctx.font = 'bold 28px "Arial"';
-    const brandTextW = ctx.measureText('FOXBLAZE').width;
-
-    // Calculate total branding width (logo + gap + text)
-    let logoW = 0;
-    const logoH = 48;
-    const logoGap = 14;
-    if (this.logoImg) {
-      logoW = Math.round(logoH * (this.logoImg.width / this.logoImg.height));
+    // ─── Right Side FOX Art (draw early, behind everything) ───────────────
+    ctx.save();
+    const useFox2 = Math.random() > 0.5;
+    const foxImg = useFox2 ? this.fox2Img : this.fox1Img;
+    if (foxImg) {
+      // Use screen blend mode so the black background of the image becomes transparent
+      ctx.globalCompositeOperation = 'screen';
+      ctx.globalAlpha = 0.6; 
+      
+      const fH = h + 200; // Oversize
+      const fW = fH * (foxImg.width / foxImg.height);
+      ctx.drawImage(foxImg, w - fW + 160, -100, fW, fH);
     }
-    const totalW = logoW + (logoW > 0 ? logoGap : 0) + brandTextW;
-    const startX = (w - totalW) / 2;
+    ctx.restore();
 
-    // Logo
-    if (this.logoImg) {
-      ctx.drawImage(this.logoImg, startX, PAD, logoW, logoH);
-    }
+    const PAD = 70;
 
-    // Brand name
-    ctx.textAlign = 'left';
-    ctx.fillStyle = BRAND.brandTeal;
-    ctx.font = 'bold 28px "Arial"';
-    const textX = startX + logoW + (logoW > 0 ? logoGap : 0);
-    ctx.fillText('FOXBLAZE', textX, PAD + 18);
+    // ─── Format helpers ───────────────
+    const formatPrice = (num: number) => {
+       if (num >= 1) {
+          if (Number.isInteger(num)) return num.toLocaleString('en-US');
+          return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+       }
+       return num.toFixed(4);
+    };
+    const formatPnl = (num: number) => {
+       return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
 
-    // Subtitle
-    ctx.fillStyle = BRAND.textMuted;
-    ctx.font = '12px "Arial"';
-    ctx.fillText('P O S I T I O N   C L O S E D', textX, PAD + 40);
-
-    // ─── SIDE + ASSET BADGE (centered, upper area) ───────────────
-    const badgeY = 200;
-    const badgeText = `${opts.side.toUpperCase()}  ·  ${opts.asset}  ·  ${opts.leverage}x`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = 'bold 24px "Arial"';
-
-    const bw = ctx.measureText(badgeText).width + 56;
-    const bh = 52;
-
-    roundRect(ctx, w / 2 - bw / 2, badgeY - bh / 2, bw, bh, bh / 2);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.fillStyle = BRAND.textLight;
-    ctx.fillText(badgeText, w / 2, badgeY);
-
-    // ─── HERO: PNL $ (centered, dominant) ────────────────────────
-    const heroY = 420;
-    const pnlText = `${sign}$${Math.abs(opts.pnl).toFixed(2)}`;
-
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '900 120px "Arial"';
-    ctx.fillStyle = color;
-    ctx.fillText(pnlText, w / 2, heroY);
-
-    // ─── ROE % BADGE (below PNL) ─────────────────────────────────
-    const roeY = 530;
-    const roeText = `${sign}${Math.abs(opts.roe).toFixed(2)}%`;
-    ctx.font = 'bold 28px "Arial"';
-
-    const rw = ctx.measureText(roeText).width + 40;
-    const rh = 48;
-
-    roundRect(ctx, w / 2 - rw / 2, roeY - rh / 2, rw, rh, rh / 2);
-    ctx.fillStyle = isProfit ? 'rgba(0, 230, 118, 0.12)' : 'rgba(255, 68, 68, 0.12)';
-    ctx.fill();
-
-    ctx.fillStyle = color;
-    ctx.fillText(roeText, w / 2, roeY);
-
-    // ─── INFO LINE (entry → exit, subtle) ────────────────────────
-    const infoY = 640;
-    ctx.font = '20px "Arial"';
-    ctx.fillStyle = BRAND.textMuted;
-    ctx.textBaseline = 'middle';
+    // ─── TOP LEFT: Avatar + Username ───────────────
+    const topY = 55;
+    const avSize = 36;
     
-    const entryStr = opts.entry >= 1 ? opts.entry.toFixed(2) : opts.entry.toFixed(4);
-    const exitStr = opts.exit >= 1 ? opts.exit.toFixed(2) : opts.exit.toFixed(4);
-    ctx.fillText(`Entry $${entryStr}   →   Exit $${exitStr}`, w / 2, infoY);
+    if (opts.avatarImage) {
+       ctx.save();
+       ctx.beginPath();
+       ctx.arc(PAD + avSize/2, topY + avSize/2, avSize/2, 0, Math.PI * 2);
+       ctx.clip();
+       ctx.drawImage(opts.avatarImage, PAD, topY, avSize, avSize);
+       ctx.restore();
+    } else if (this.logoImg) {
+       ctx.save();
+       ctx.beginPath();
+       ctx.arc(PAD + avSize/2, topY + avSize/2, avSize/2, 0, Math.PI * 2);
+       ctx.fillStyle = '#0A1814';
+       ctx.fill();
+       ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+       ctx.lineWidth = 1;
+       ctx.stroke();
+       ctx.clip();
+       const logoP = 8;
+       ctx.drawImage(this.logoImg, PAD + logoP, topY + logoP, avSize - logoP*2, avSize - logoP*2);
+       ctx.restore();
+    } else {
+       ctx.fillStyle = '#111D1A';
+       ctx.beginPath();
+       ctx.arc(PAD + avSize/2, topY + avSize/2, avSize/2, 0, Math.PI * 2);
+       ctx.fill();
+       ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+       ctx.lineWidth = 1;
+       ctx.stroke();
+       ctx.fillStyle = BRAND.textWhite;
+       ctx.font = '500 18px "Inter", sans-serif';
+       ctx.textAlign = 'center';
+       ctx.textBaseline = 'middle';
+       ctx.fillText(opts.username.charAt(0).toUpperCase(), PAD + avSize/2, topY + avSize/2 + 1);
+    }
+    
+    ctx.fillStyle = BRAND.textWhite;
+    ctx.font = 'bold 32px "Inter", sans-serif'; 
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(opts.username, PAD + avSize + 14, topY + avSize/2 + 1);
 
-    // ─── FOOTER ──────────────────────────────────────────────────
-    ctx.font = '14px "Arial"';
-    ctx.fillStyle = BRAND.textDark;
-    ctx.fillText('foxblaze.trade · Auto-generated Trade Report', w / 2, h - 40);
+    // ─── CENTER LEFT: Asset Icon + Name + Badge ───────────────
+    const midY = 240; // Increased spacing to prevent overlapping
+    const iconSize = 52;
+    
+    // Circle icon
+    if (!opts.assetLogo) {
+       ctx.beginPath();
+       ctx.arc(PAD + iconSize/2, midY + iconSize/2, iconSize/2, 0, Math.PI*2);
+       ctx.fillStyle = '#0A1814';
+       ctx.fill();
+       ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+       ctx.lineWidth = 1;
+       ctx.stroke();
+    }
+    
+    if (opts.assetLogo) {
+       ctx.save();
+       ctx.beginPath();
+       ctx.arc(PAD + iconSize/2, midY + iconSize/2, iconSize/2, 0, Math.PI*2);
+       ctx.clip();
+       ctx.drawImage(opts.assetLogo, PAD, midY, iconSize, iconSize);
+       ctx.restore();
+    } else if (this.logoImg) {
+       ctx.save();
+       ctx.beginPath();
+       ctx.arc(PAD + iconSize/2, midY + iconSize/2, iconSize/2 - 1, 0, Math.PI*2);
+       ctx.clip();
+       const lp = 8;
+       ctx.drawImage(this.logoImg, PAD + lp, midY + lp, iconSize - lp*2, iconSize - lp*2);
+       ctx.restore();
+    } else {
+       ctx.fillStyle = '#FFFFFF';
+       ctx.font = '28px "Inter", sans-serif';
+       ctx.textAlign = 'center';
+       ctx.textBaseline = 'middle';
+       ctx.fillText('◆', PAD + iconSize/2, midY + iconSize/2 + 1);
+    }
+
+    // Asset Name — regular weight Teodor (thinner than bold)
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.font = '68px "Teodor", serif'; 
+    ctx.fillStyle = '#FFFFFF';
+    const assetX = PAD + iconSize + 18;
+    const assetCY = midY + iconSize/2;
+    ctx.fillText(opts.asset, assetX, assetCY);
+    const assetW = ctx.measureText(opts.asset).width;
+
+    // "LONG 10X" Hyperliquid-style pill badge
+    const isLong = opts.side.toUpperCase() === 'LONG';
+    const badgeText = `${opts.side.toUpperCase()} ${opts.leverage}X`;
+    const badgeColor = isLong ? tealProfit : redLoss;
+    
+    ctx.font = 'bold 26px "Teodor", serif'; 
+    const badgePadX = 16;
+    const badgePadY = 8;
+    const badgeTextW = ctx.measureText(badgeText).width;
+    const badgeW = badgeTextW + badgePadX * 2;
+    const badgeH = 26 + badgePadY * 2;
+    const badgeX = assetX + assetW + 20;
+    const badgeY = assetCY - badgeH / 2;
+    
+    ctx.fillStyle = isLong ? 'rgba(46, 235, 165, 0.15)' : 'rgba(255, 68, 68, 0.15)';
+    ctx.beginPath();
+    ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 6);
+    ctx.fill();
+    
+    ctx.fillStyle = badgeColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(badgeText, badgeX + badgeW/2, badgeY + badgeH/2 + 1);
+
+    // ─── HERO PNL ───────────────
+    ctx.save();
+    const pnlY = 420; // Adjusted down
+    ctx.fillStyle = isProfit ? tealProfit : redLoss;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+    
+    if (opts.hideProfit) {
+        const roeStr = `${isProfit ? '+' : ''}${(opts.roe * 100).toFixed(2)}%`;
+        ctx.font = '110px "Teodor", serif';
+        ctx.fillText(roeStr, PAD, pnlY);
+    } else {
+        const sign = isProfit ? '+' : '-';
+        const pnlNum = `${sign}${formatPnl(Math.abs(opts.pnl))}`;
+        ctx.font = '110px "Teodor", serif';
+        ctx.fillText(pnlNum, PAD, pnlY);
+        const numW = ctx.measureText(pnlNum).width;
+        // USDT suffix smaller, aligned to baseline
+        ctx.font = '500 44px "Inter", sans-serif';
+        ctx.fillText(' USDT', PAD + numW, pnlY);
+    }
+    ctx.restore();
+
+    // ─── BOTTOM ROW: Metrics + Logo (aligned baselines) ───────────────
+    const labelY = h - 145;
+    const valueY = h - 95;
+    const colSpacing = 220;
+
+    const metrics = [
+      { label: 'Entry', val: `$${formatPrice(opts.entry)}` },
+      { label: 'Exit', val: `$${formatPrice(opts.exit)}` },
+      { label: 'Size', val: opts.hideProfit ? '***' : `$${formatPrice(opts.size)}` }
+    ];
+
+    for(let i=0; i<metrics.length; i++) {
+       const mx = PAD + i * colSpacing;
+       ctx.fillStyle = '#6B7A8D';
+       ctx.font = '20px "Inter", sans-serif';
+       ctx.textAlign = 'left';
+       ctx.textBaseline = 'alphabetic';
+       ctx.fillText(metrics[i].label, mx, labelY);
+
+       ctx.fillStyle = '#FFFFFF';
+       ctx.font = '500 32px "Inter", sans-serif';
+       ctx.fillText(metrics[i].val, mx, valueY);
+    }
+
+    // ─── BOTTOM RIGHT LOGO — vertically centered with metrics ───────────────
+    if (this.foxTextImg) {
+       const tw = 260;
+       const th = tw * (this.foxTextImg.height / this.foxTextImg.width);
+       // Align logo center with midpoint between labelY and valueY
+       const metricsCenter = (labelY + valueY) / 2;
+       ctx.drawImage(this.foxTextImg, w - tw - PAD, metricsCenter - th/2, tw, th);
+    }
 
     ctx.restore();
+  }
+
+  async generateNewClosedPositionBuffer(
+    botInstance: any,
+    opts: {
+      telegramId: bigint;
+      username: string;
+      asset: string;
+      side: string;
+      leverage: number;
+      entry: number;
+      exit: number;
+      size: number;
+      pnl: number;
+      roe: number;
+      hideProfit: boolean;
+    }
+  ): Promise<Buffer> {
+    const w = 1600;
+    const h = 920;
+    
+    // Setup canvas: Scale down to exactly 1280px width (0.8 scale)
+    // Telegram aggressively compresses anything over 1280px, causing blur.
+    const S = 0.8;
+    const canvas = createCanvas(w * S, h * S);
+    const ctx = canvas.getContext('2d');
+    ctx.scale(S, S);
+    
+    // Fetch Avatar
+    let avatarImage: Image | null = null;
+    if (botInstance && botInstance.token) {
+       try {
+          const photos = await botInstance.api.getUserProfilePhotos(Number(opts.telegramId), { limit: 1 });
+          if (photos.total_count > 0) {
+             const fileId = photos.photos[0][0].file_id;
+             const file = await botInstance.api.getFile(fileId);
+             const url = `https://api.telegram.org/file/bot${botInstance.token}/${file.file_path}`;
+             avatarImage = await loadImage(url);
+          }
+       } catch(e: any) {
+          this.logger.warn(`Could not load avatar for ${opts.telegramId}: ${e.message}`);
+       }
+    }
+
+    // Fetch Token SVG Logo from Hyperliquid
+    let assetLogo: Image | null = null;
+    if (opts.asset) {
+       try {
+          const fetchLogoUrl = (url: string) => new Promise<Buffer>((resolve, reject) => {
+             const https = require('https');
+             https.get(url, (res: any) => {
+                if (res.statusCode !== 200) return reject(new Error(`Not found: ${res.statusCode}`));
+                let data = '';
+                res.on('data', (c: any) => data += c);
+                res.on('end', () => {
+                   let svg = data;
+                   if (!svg.includes('<svg')) return reject(new Error('HTML fallback returned, not an SVG'));
+                   if (!svg.includes('width=')) svg = svg.replace('<svg', '<svg width="200" height="200"');
+                   resolve(Buffer.from(svg));
+                });
+             }).on('error', reject);
+          });
+          
+          let svgBuf: Buffer;
+          const assetUpper = opts.asset.toUpperCase();
+          try {
+             svgBuf = await fetchLogoUrl(`https://app.hyperliquid.xyz/coins/${assetUpper}.svg`);
+          } catch(e) {
+             // Fallback for pre-launch or special tokens like GOLD -> xyz:GOLD
+             svgBuf = await fetchLogoUrl(`https://app.hyperliquid.xyz/coins/xyz:${assetUpper}.svg`);
+          }
+          
+          assetLogo = await loadImage(svgBuf);
+       } catch(e) {
+          // fallback to standard logo if fetch fails silently
+          this.logger.warn(`Could not load Hyperliquid SVG for asset ${opts.asset}`);
+       }
+    }
+
+    try {
+        await this.drawNewClosedPositionCard(ctx, { ...opts, width: w, height: h, avatarImage, assetLogo });
+    } catch(e) {
+        this.logger.error("Failed to render new closed position card", e);
+    }
+    
+    return this.toBuffer(canvas);
   }
 
   // ─── PREMIUM CARD ───────────────────────────────────────────────

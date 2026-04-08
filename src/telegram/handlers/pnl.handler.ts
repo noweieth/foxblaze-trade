@@ -27,16 +27,15 @@ export class PnlHandler {
     const waitMsg = await ctx.reply("⏳ Calculating PnL shape (7D)...");
 
     try {
-      // Tạm thời lấy tất cả lệnh đã đóng
-      // Thường chúng ta sẽ GROUP BY ngày, nhưng vì bot demo ít lệnh 
-      // nên ta sẽ cứ gộp PnL của từng lệnh vào mảng tích luỹ
+      // Fetch all closed trades
+      // Doing simple sequential accumulation instead of GROUP BY date for now
       const records = await this.prisma.trade.findMany({
         where: {
            userId: user.id,
            status: { in: ['CLOSED'] }
         },
-        orderBy: { closedAt: 'asc' }, // Từ lệnh cũ nhất đến mới nhất
-        take: 50 // Giới hạn 50 lệnh gần nhất
+        orderBy: { closedAt: 'asc' }, // Oldest to newest
+        take: 50 // Limit 50 recent trades
       });
 
       if (records.length === 0) {
@@ -46,9 +45,9 @@ export class PnlHandler {
 
       await ctx.api.deleteMessage(ctx.chat!.id, waitMsg.message_id);
 
-      // Xây dựng mảng cumulative PnL
+      // Build cumulative PnL array
       let currentSum = 0;
-      const pnlData = [0]; // Bắt đầu ở móc 0
+      const pnlData = [0]; // Start at 0
 
       for (const r of records) {
         currentSum += (r.pnl || 0);
@@ -75,7 +74,7 @@ export class PnlHandler {
 
       cy += 20;
 
-      // Vẽ biểu đồ
+      // Draw chart
       this.cardRenderer.drawPnlChart(ctx2d, {
         startY: cy,
         width: w,
@@ -87,7 +86,7 @@ export class PnlHandler {
 
       const buffer = this.cardRenderer.toBuffer(canvas);
 
-      // Cụm phím đổi Timeframe (Mocking logic for now)
+      // Timeframe switcher keyboard (Mocking logic for now)
       const keyboard = new InlineKeyboard()
          .text("1D", "pnl_1d")
          .text("7D (Current)", "pnl_7d")

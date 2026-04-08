@@ -49,7 +49,7 @@ export class HistoryHandler {
 
       const histories = records.map((h: any) => {
         const dateStr = h.createdAt.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', hour12: false });
-        // Lược bỏ giây cho đẹp, format YYYY-MM-DD HH:mm
+        // Omit seconds for better UX, format YYYY-MM-DD HH:mm
         const dateClean = dateStr.replace(/:\d{2}$/, ''); 
         
         let assetName = h.asset;

@@ -43,51 +43,51 @@ export class RiskService {
       ? PREMIUM_MAX_POSITION_SIZE_USD
       : (runtimeConfig?.MAX_POSITION_SIZE_USD ?? this.configService.get<number>('MAX_POSITION_SIZE_USD', 5000));
 
-    // 1. Kiểm tra kích thước lệnh cá nhân
-    const realSize = targetSizeUsd * leverage; // Giá trị lệnh thực tế
+    // 1. Check individual order size
+    const realSize = targetSizeUsd * leverage; // Actual order value
     if (targetSizeUsd > maxPositionSizeUsd) {
-      throw new Error(`🚫 Kích thước Ký Quỹ ($${targetSizeUsd}) vượt Trần quy định ($${maxPositionSizeUsd}).`);
+      throw new Error(`🚫 Margin Size ($${targetSizeUsd}) exceeds the allowed limit ($${maxPositionSizeUsd}).`);
     }
 
     try {
-       // Lấy state và positions
+       // Fetch state and positions
        const [accountState, positions] = await Promise.all([
           this.hlInfo.getAccountState(walletAddress),
           this.hlInfo.getPositions(walletAddress)
        ]);
 
-       // 2. Kiểm tra số lượng vị thế đang mở
+       // 2. Check the number of open positions
        const openPositionsCount = positions.filter(p => parseFloat(p.size) !== 0).length;
        if (openPositionsCount >= maxPositions) {
-          throw new Error(`🚫 Bạn đã mở tối đa ${maxPositions} lệnh hợp lệ. Vui lòng đóng bớt lệnh cũ để mở lệnh mới.`);
+          throw new Error(`🚫 You have reached the maximum of ${maxPositions} open positions. Please close some before opening new ones.`);
        }
 
-       // 3. Kiểm tra trần rủi ro Margin (Chống Margin Call / Thanh lý Cross)
+       // 3. Check Margin risk ceiling (Prevent Margin Call / Cross Liquidation)
        const equity = parseFloat(accountState.equity);
        const marginUsed = parseFloat(accountState.marginUsed);
        
        if (equity <= 0) {
-          throw new Error(`🚫 Số dư khả dụng không đủ (Equity=$${equity}).`);
+          throw new Error(`🚫 Insufficient available balance (Equity=$${equity}).`);
        }
 
-       // Tính tổng số tiền bị khóa nếu đánh lệnh mới này
+       // Calculate total locked margin if this new order is executed
        const newTotalMargin = marginUsed + targetSizeUsd;
        const maxAllowedMargin = equity * maxMarginRatio;
 
        if (newTotalMargin > maxAllowedMargin) {
           const ratioPercent = (maxMarginRatio * 100).toFixed(0);
-          throw new Error(`🚫 Cảnh báo Thanh Lý Chéo! Lệnh này khiến Tổng số Margin vượt quá ${ratioPercent}% sức chịu đựng của tài khoản (Dùng: $${newTotalMargin.toFixed(2)} / Trần: $${maxAllowedMargin.toFixed(2)}).`);
+          throw new Error(`🚫 Cross-Margin Warning! This trade pushes Total Margin usage beyond the safe ${ratioPercent}% threshold (Used: $${newTotalMargin.toFixed(2)} / Limit: $${maxAllowedMargin.toFixed(2)}).`);
        }
 
        this.logger.log(`Safety check passed for ${walletAddress}. TargetSize: $${targetSizeUsd}`);
     } catch (e: any) {
-       // Nếu lỗi do logic risk, quăng tiếp ném ra ngoài
+       // If it's a risk logic error, throw it outwards
        if (e.message.includes('🚫')) {
           throw e;
        }
-       // Nếu lỗi mạng hoặc API fail, chặn cẩn mật thay vì cho qua
+       // If it's a network or API failure, block strictly instead of passing through
        this.logger.error(`Error during risk validation: ${e.message}`);
-       throw new Error(`❌ Không thể xác thực Sức Khỏe Tài Khoản qua On-chain. Vui lòng thử lại sau.`);
+       throw new Error(`❌ Unable to verify Account Health via On-chain data. Please try again later.`);
     }
   }
 }
