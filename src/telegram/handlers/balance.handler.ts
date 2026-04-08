@@ -37,14 +37,9 @@ export class BalanceHandler {
       // Handle the scenario where L1 deposit takes 1-3 minutes to reach L2, and the Auto-Deposit worker failed to activate HL.
       // When the user executes /balance, we actively hook into the Onboard function to activate if funds have reached L2.
       if (!wallet.isHlRegistered) {
-        wallet = await this.walletService.createWalletAndOnboard(user.id);
-        if (!wallet || !wallet.isHlRegistered) {
-          return ctx.reply(
-            `⏳ <b>L1 Bridge Syncing...</b>\n\n` +
-            `Your L1 deposit hasn't been confirmed on the Hyperliquid network yet (usually takes 1-3 minutes).\n` +
-            `Please wait a few minutes and run <b>/balance</b> again to complete synchronization.`,
-            { parse_mode: 'HTML' }
-          );
+        const updatedWallet = await this.walletService.createWalletAndOnboard(user.id);
+        if (updatedWallet) {
+          wallet = updatedWallet;
         }
       }
 

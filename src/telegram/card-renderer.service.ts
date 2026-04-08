@@ -69,6 +69,7 @@ export class CardRenderer implements OnModuleInit {
     try { registerFont(path.join(publicDir, 'fonts', 'Inter-Italic.ttf'), { family: 'Inter', style: 'italic' }); } catch(e){}
     try { registerFont(path.join(publicDir, 'fonts', 'Teodor-Bold.ttf'), { family: 'Teodor', weight: 'bold' }); } catch(e){}
     try { registerFont(path.join(publicDir, 'fonts', 'Teodor-Regular.ttf'), { family: 'Teodor' }); } catch(e){}
+    try { registerFont(path.join(publicDir, 'fonts', 'TeodorTRIAL-Light-BF672198fb5c0ea.otf'), { family: 'TeodorLight' }); } catch(e){}
 
     try {
       this.logoImg = await loadImage(path.join(publicDir, 'logo_foxblaze.png'));
@@ -195,21 +196,7 @@ export class CardRenderer implements OnModuleInit {
       }
     }
 
-    // Separator — neutral white gradient
     const sepY = 74;
-    const sg = ctx.createLinearGradient(PAD + 10, 0, opts.width - PAD - 10, 0);
-    sg.addColorStop(0, 'rgba(255,255,255,0)');
-    sg.addColorStop(0.15, 'rgba(255,255,255,0.06)');
-    sg.addColorStop(0.5, 'rgba(255,255,255,0.08)');
-    sg.addColorStop(0.85, 'rgba(255,255,255,0.06)');
-    sg.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.beginPath();
-    ctx.strokeStyle = sg;
-    ctx.lineWidth = 1;
-    ctx.moveTo(PAD + 10, sepY);
-    ctx.lineTo(opts.width - PAD - 10, sepY);
-    ctx.stroke();
-
     return sepY + 6; // return Y after header
   }
 
@@ -218,18 +205,6 @@ export class CardRenderer implements OnModuleInit {
   drawFooter(ctx: CanvasRenderingContext2D, w: number, h: number, tipText: string): void {
     const PAD = 32;
     const fY = h - 36;
-
-    const fg = ctx.createLinearGradient(PAD + 10, 0, w - PAD - 10, 0);
-    fg.addColorStop(0, 'rgba(255,255,255,0)');
-    fg.addColorStop(0.3, 'rgba(255,255,255,0.03)');
-    fg.addColorStop(0.7, 'rgba(255,255,255,0.03)');
-    fg.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.beginPath();
-    ctx.strokeStyle = fg;
-    ctx.lineWidth = 1;
-    ctx.moveTo(PAD + 10, fY);
-    ctx.lineTo(w - PAD - 10, fY);
-    ctx.stroke();
 
     ctx.fillStyle = BRAND.textMuted;
     ctx.font = '11px "Arial"';
@@ -798,7 +773,8 @@ export class CardRenderer implements OnModuleInit {
 
   /**
    * Reference-matched Full-card renderer for closed position.
-   * Size: 1024 x 512
+   * Design: 1024x512 → Canvas: 1600x800 (×1.5625 uniform scale) → Output: 1280x640 (×0.8)
+   * All coordinates below are in the 1600×800 logical space.
    */
   async drawNewClosedPositionCard(
     ctx: CanvasRenderingContext2D,
@@ -822,216 +798,230 @@ export class CardRenderer implements OnModuleInit {
     const w = opts.width;
     const h = opts.height;
     const isProfit = opts.pnl >= 0;
-    
+
     const tealProfit = '#2EEBA5';
     const redLoss = '#FF4444';
+    const pnlColor = isProfit ? tealProfit : redLoss;
 
     ctx.save();
 
-    // ─── Background ───────────────
+    // ═══ BACKGROUND ═══
     ctx.fillStyle = '#05110E';
     ctx.fillRect(0, 0, w, h);
 
-    // ─── Right Side FOX Art (draw early, behind everything) ───────────────
+    // ═══ FOX ART (right side, behind everything) ═══
     ctx.save();
-    const useFox2 = Math.random() > 0.5;
-    const foxImg = useFox2 ? this.fox2Img : this.fox1Img;
+    const foxImg = Math.random() > 0.5 ? this.fox2Img : this.fox1Img;
     if (foxImg) {
-      // Use screen blend mode so the black background of the image becomes transparent
       ctx.globalCompositeOperation = 'screen';
-      ctx.globalAlpha = 0.6; 
-      
-      const fH = h + 200; // Oversize
+      ctx.globalAlpha = 0.6;
+      const fH = h + 160;
       const fW = fH * (foxImg.width / foxImg.height);
-      ctx.drawImage(foxImg, w - fW + 160, -100, fW, fH);
+      ctx.drawImage(foxImg, w - fW + 140, -80, fW, fH);
     }
     ctx.restore();
 
-    const PAD = 70;
+    // ═══ LAYOUT CONSTANTS ═══
+    const PAD = 64;
 
-    // ─── Format helpers ───────────────
     const formatPrice = (num: number) => {
-       if (num >= 1) {
-          if (Number.isInteger(num)) return num.toLocaleString('en-US');
-          return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-       }
-       return num.toFixed(4);
+      if (num >= 1) {
+        if (Number.isInteger(num)) return num.toLocaleString('en-US');
+        return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      }
+      return num.toFixed(4);
     };
     const formatPnl = (num: number) => {
-       return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
 
-    // ─── TOP LEFT: Avatar + Username ───────────────
-    const topY = 55;
-    const avSize = 36;
-    
+    // ═══ ROW 1: Avatar + Username ═══
+    // Design: ~7% from top, small avatar, subtle username
+    const topY = 52;
+    const avSize = 34;
+
     if (opts.avatarImage) {
-       ctx.save();
-       ctx.beginPath();
-       ctx.arc(PAD + avSize/2, topY + avSize/2, avSize/2, 0, Math.PI * 2);
-       ctx.clip();
-       ctx.drawImage(opts.avatarImage, PAD, topY, avSize, avSize);
-       ctx.restore();
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(PAD + avSize / 2, topY + avSize / 2, avSize / 2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(opts.avatarImage, PAD, topY, avSize, avSize);
+      ctx.restore();
     } else if (this.logoImg) {
-       ctx.save();
-       ctx.beginPath();
-       ctx.arc(PAD + avSize/2, topY + avSize/2, avSize/2, 0, Math.PI * 2);
-       ctx.fillStyle = '#0A1814';
-       ctx.fill();
-       ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-       ctx.lineWidth = 1;
-       ctx.stroke();
-       ctx.clip();
-       const logoP = 8;
-       ctx.drawImage(this.logoImg, PAD + logoP, topY + logoP, avSize - logoP*2, avSize - logoP*2);
-       ctx.restore();
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(PAD + avSize / 2, topY + avSize / 2, avSize / 2, 0, Math.PI * 2);
+      ctx.fillStyle = '#0A1814';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.clip();
+      const lp = 7;
+      ctx.drawImage(this.logoImg, PAD + lp, topY + lp, avSize - lp * 2, avSize - lp * 2);
+      ctx.restore();
     } else {
-       ctx.fillStyle = '#111D1A';
-       ctx.beginPath();
-       ctx.arc(PAD + avSize/2, topY + avSize/2, avSize/2, 0, Math.PI * 2);
-       ctx.fill();
-       ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-       ctx.lineWidth = 1;
-       ctx.stroke();
-       ctx.fillStyle = BRAND.textWhite;
-       ctx.font = '500 18px "Inter", sans-serif';
-       ctx.textAlign = 'center';
-       ctx.textBaseline = 'middle';
-       ctx.fillText(opts.username.charAt(0).toUpperCase(), PAD + avSize/2, topY + avSize/2 + 1);
+      ctx.fillStyle = '#111D1A';
+      ctx.beginPath();
+      ctx.arc(PAD + avSize / 2, topY + avSize / 2, avSize / 2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = BRAND.textWhite;
+      ctx.font = '500 16px "Inter", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(opts.username.charAt(0).toUpperCase(), PAD + avSize / 2, topY + avSize / 2 + 1);
     }
-    
+
     ctx.fillStyle = BRAND.textWhite;
-    ctx.font = 'bold 32px "Inter", sans-serif'; 
+    ctx.font = '500 26px "Inter", sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText(opts.username, PAD + avSize + 14, topY + avSize/2 + 1);
+    ctx.fillText(opts.username, PAD + avSize + 14, topY + avSize / 2 + 1);
 
-    // ─── CENTER LEFT: Asset Icon + Name + Badge ───────────────
-    const midY = 240; // Increased spacing to prevent overlapping
-    const iconSize = 52;
-    
-    // Circle icon
+    // ═══ ROW 2: Asset Icon + Name + Badge ═══
+    // Design: ~27% from top
+    const assetRowY = 210;
+    const iconSize = 50;
+
+    // Icon background
     if (!opts.assetLogo) {
-       ctx.beginPath();
-       ctx.arc(PAD + iconSize/2, midY + iconSize/2, iconSize/2, 0, Math.PI*2);
-       ctx.fillStyle = '#0A1814';
-       ctx.fill();
-       ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-       ctx.lineWidth = 1;
-       ctx.stroke();
-    }
-    
-    if (opts.assetLogo) {
-       ctx.save();
-       ctx.beginPath();
-       ctx.arc(PAD + iconSize/2, midY + iconSize/2, iconSize/2, 0, Math.PI*2);
-       ctx.clip();
-       ctx.drawImage(opts.assetLogo, PAD, midY, iconSize, iconSize);
-       ctx.restore();
-    } else if (this.logoImg) {
-       ctx.save();
-       ctx.beginPath();
-       ctx.arc(PAD + iconSize/2, midY + iconSize/2, iconSize/2 - 1, 0, Math.PI*2);
-       ctx.clip();
-       const lp = 8;
-       ctx.drawImage(this.logoImg, PAD + lp, midY + lp, iconSize - lp*2, iconSize - lp*2);
-       ctx.restore();
-    } else {
-       ctx.fillStyle = '#FFFFFF';
-       ctx.font = '28px "Inter", sans-serif';
-       ctx.textAlign = 'center';
-       ctx.textBaseline = 'middle';
-       ctx.fillText('◆', PAD + iconSize/2, midY + iconSize/2 + 1);
+      ctx.beginPath();
+      ctx.arc(PAD + iconSize / 2, assetRowY + iconSize / 2, iconSize / 2, 0, Math.PI * 2);
+      ctx.fillStyle = '#0A1814';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
     }
 
-    // Asset Name — regular weight Teodor (thinner than bold)
+    // Icon image
+    if (opts.assetLogo) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(PAD + iconSize / 2, assetRowY + iconSize / 2, iconSize / 2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(opts.assetLogo, PAD, assetRowY, iconSize, iconSize);
+      ctx.restore();
+    } else if (this.logoImg) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(PAD + iconSize / 2, assetRowY + iconSize / 2, iconSize / 2 - 1, 0, Math.PI * 2);
+      ctx.clip();
+      const lp = 8;
+      ctx.drawImage(this.logoImg, PAD + lp, assetRowY + lp, iconSize - lp * 2, iconSize - lp * 2);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '24px "Inter", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('◆', PAD + iconSize / 2, assetRowY + iconSize / 2 + 1);
+    }
+
+    // Asset Name — Inter Bold (per design)
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.font = '68px "Teodor", serif'; 
+    ctx.font = 'bold 72px "Inter", sans-serif';
     ctx.fillStyle = '#FFFFFF';
-    const assetX = PAD + iconSize + 18;
-    const assetCY = midY + iconSize/2;
+    const assetX = PAD + iconSize + 16;
+    const assetCY = assetRowY + iconSize / 2;
     ctx.fillText(opts.asset, assetX, assetCY);
     const assetW = ctx.measureText(opts.asset).width;
 
-    // "LONG 10X" Hyperliquid-style pill badge
+    // Side Badge (LONG 10X) — 1/2 size of asset name
     const isLong = opts.side.toUpperCase() === 'LONG';
     const badgeText = `${opts.side.toUpperCase()} ${opts.leverage}X`;
     const badgeColor = isLong ? tealProfit : redLoss;
-    
-    ctx.font = 'bold 26px "Teodor", serif'; 
-    const badgePadX = 16;
-    const badgePadY = 8;
+
+    ctx.font = 'bold 36px "Inter", sans-serif';
+    const badgePadX = 18;
+    const badgePadY = 7;
     const badgeTextW = ctx.measureText(badgeText).width;
     const badgeW = badgeTextW + badgePadX * 2;
-    const badgeH = 26 + badgePadY * 2;
+    const badgeH = 36 + badgePadY * 2;
     const badgeX = assetX + assetW + 20;
     const badgeY = assetCY - badgeH / 2;
-    
-    ctx.fillStyle = isLong ? 'rgba(46, 235, 165, 0.15)' : 'rgba(255, 68, 68, 0.15)';
+
+    ctx.fillStyle = isLong ? 'rgba(46, 235, 165, 0.12)' : 'rgba(255, 68, 68, 0.12)';
     ctx.beginPath();
-    ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 6);
+    ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 7);
     ctx.fill();
-    
+
     ctx.fillStyle = badgeColor;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(badgeText, badgeX + badgeW/2, badgeY + badgeH/2 + 1);
+    ctx.fillText(badgeText, badgeX + badgeW / 2, badgeY + badgeH / 2 + 1);
 
-    // ─── HERO PNL ───────────────
+    // ═══ ROW 3: Hero PnL ═══
+    // Design: PnL baseline at ~52% from top
     ctx.save();
-    const pnlY = 420; // Adjusted down
-    ctx.fillStyle = isProfit ? tealProfit : redLoss;
+    const pnlBaseline = 420;
+    ctx.fillStyle = pnlColor;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
-    
+
+    // Glow effect behind PnL text for visual depth
+    const glowR = parseInt(pnlColor.slice(1, 3), 16);
+    const glowG = parseInt(pnlColor.slice(3, 5), 16);
+    const glowB = parseInt(pnlColor.slice(5, 7), 16);
+    ctx.shadowColor = `rgba(${glowR},${glowG},${glowB},0.35)`;
+    ctx.shadowBlur = 40;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
     if (opts.hideProfit) {
-        const roeStr = `${isProfit ? '+' : ''}${(opts.roe * 100).toFixed(2)}%`;
-        ctx.font = '110px "Teodor", serif';
-        ctx.fillText(roeStr, PAD, pnlY);
+      const roeStr = `${isProfit ? '+' : ''}${(opts.roe * 100).toFixed(2)}%`;
+      ctx.font = '110px "TeodorLight", serif';
+      ctx.fillText(roeStr, PAD, pnlBaseline);
     } else {
-        const sign = isProfit ? '+' : '-';
-        const pnlNum = `${sign}${formatPnl(Math.abs(opts.pnl))}`;
-        ctx.font = '110px "Teodor", serif';
-        ctx.fillText(pnlNum, PAD, pnlY);
-        const numW = ctx.measureText(pnlNum).width;
-        // USDT suffix smaller, aligned to baseline
-        ctx.font = '500 44px "Inter", sans-serif';
-        ctx.fillText(' USDT', PAD + numW, pnlY);
+      const sign = isProfit ? '+' : '-';
+      const pnlNum = `${sign}${formatPnl(Math.abs(opts.pnl))}`;
+      ctx.font = '110px "TeodorLight", serif';
+      ctx.fillText(pnlNum, PAD, pnlBaseline);
+
+      // Disable glow for USDT suffix
+      ctx.shadowBlur = 0;
+      const numW = ctx.measureText(pnlNum).width;
+      ctx.font = '40px "TeodorLight", serif';
+      ctx.fillText(' USDT', PAD + numW, pnlBaseline);
     }
     ctx.restore();
 
-    // ─── BOTTOM ROW: Metrics + Logo (aligned baselines) ───────────────
-    const labelY = h - 145;
-    const valueY = h - 95;
+    // ═══ ROW 4: Bottom Metrics (Entry / Exit / Size) ═══
+    // Design: labels at ~83%, values at ~90%
+    const labelY = h - 140;
+    const valueY = h - 88;
     const colSpacing = 220;
 
     const metrics = [
       { label: 'Entry', val: `$${formatPrice(opts.entry)}` },
       { label: 'Exit', val: `$${formatPrice(opts.exit)}` },
-      { label: 'Size', val: opts.hideProfit ? '***' : `$${formatPrice(opts.size)}` }
+      { label: 'Size', val: opts.hideProfit ? '***' : `$${formatPrice(opts.size)}` },
     ];
 
-    for(let i=0; i<metrics.length; i++) {
-       const mx = PAD + i * colSpacing;
-       ctx.fillStyle = '#6B7A8D';
-       ctx.font = '20px "Inter", sans-serif';
-       ctx.textAlign = 'left';
-       ctx.textBaseline = 'alphabetic';
-       ctx.fillText(metrics[i].label, mx, labelY);
+    for (let i = 0; i < metrics.length; i++) {
+      const mx = PAD + i * colSpacing;
 
-       ctx.fillStyle = '#FFFFFF';
-       ctx.font = '500 32px "Inter", sans-serif';
-       ctx.fillText(metrics[i].val, mx, valueY);
+      ctx.fillStyle = '#6B7A8D';
+      ctx.font = '20px "Inter", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(metrics[i].label, mx, labelY);
+
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '500 32px "Inter", sans-serif';
+      ctx.fillText(metrics[i].val, mx, valueY);
     }
 
-    // ─── BOTTOM RIGHT LOGO — vertically centered with metrics ───────────────
+    // ═══ BOTTOM RIGHT LOGO ═══
     if (this.foxTextImg) {
-       const tw = 260;
-       const th = tw * (this.foxTextImg.height / this.foxTextImg.width);
-       // Align logo center with midpoint between labelY and valueY
-       const metricsCenter = (labelY + valueY) / 2;
-       ctx.drawImage(this.foxTextImg, w - tw - PAD, metricsCenter - th/2, tw, th);
+      const tw = 240;
+      const th = tw * (this.foxTextImg.height / this.foxTextImg.width);
+      const metricsCenter = (labelY + valueY) / 2;
+      ctx.drawImage(this.foxTextImg, w - tw - PAD, metricsCenter - th / 2, tw, th);
     }
 
     ctx.restore();
@@ -1053,73 +1043,68 @@ export class CardRenderer implements OnModuleInit {
       hideProfit: boolean;
     }
   ): Promise<Buffer> {
+    // Full resolution rendering — no downscaling to avoid blur
     const w = 1600;
-    const h = 920;
-    
-    // Setup canvas: Scale down to exactly 1280px width (0.8 scale)
-    // Telegram aggressively compresses anything over 1280px, causing blur.
-    const S = 0.8;
-    const canvas = createCanvas(w * S, h * S);
+    const h = 800;
+
+    const canvas = createCanvas(w, h);
     const ctx = canvas.getContext('2d');
-    ctx.scale(S, S);
-    
+
     // Fetch Avatar
     let avatarImage: Image | null = null;
     if (botInstance && botInstance.token) {
-       try {
-          const photos = await botInstance.api.getUserProfilePhotos(Number(opts.telegramId), { limit: 1 });
-          if (photos.total_count > 0) {
-             const fileId = photos.photos[0][0].file_id;
-             const file = await botInstance.api.getFile(fileId);
-             const url = `https://api.telegram.org/file/bot${botInstance.token}/${file.file_path}`;
-             avatarImage = await loadImage(url);
-          }
-       } catch(e: any) {
-          this.logger.warn(`Could not load avatar for ${opts.telegramId}: ${e.message}`);
-       }
+      try {
+        const photos = await botInstance.api.getUserProfilePhotos(Number(opts.telegramId), { limit: 1 });
+        if (photos.total_count > 0) {
+          const fileId = photos.photos[0][0].file_id;
+          const file = await botInstance.api.getFile(fileId);
+          const url = `https://api.telegram.org/file/bot${botInstance.token}/${file.file_path}`;
+          avatarImage = await loadImage(url);
+        }
+      } catch (e: any) {
+        this.logger.warn(`Could not load avatar for ${opts.telegramId}: ${e.message}`);
+      }
     }
 
     // Fetch Token SVG Logo from Hyperliquid
     let assetLogo: Image | null = null;
     if (opts.asset) {
-       try {
-          const fetchLogoUrl = (url: string) => new Promise<Buffer>((resolve, reject) => {
-             const https = require('https');
-             https.get(url, (res: any) => {
-                if (res.statusCode !== 200) return reject(new Error(`Not found: ${res.statusCode}`));
-                let data = '';
-                res.on('data', (c: any) => data += c);
-                res.on('end', () => {
-                   let svg = data;
-                   if (!svg.includes('<svg')) return reject(new Error('HTML fallback returned, not an SVG'));
-                   if (!svg.includes('width=')) svg = svg.replace('<svg', '<svg width="200" height="200"');
-                   resolve(Buffer.from(svg));
-                });
-             }).on('error', reject);
-          });
-          
-          let svgBuf: Buffer;
-          const assetUpper = opts.asset.toUpperCase();
-          try {
-             svgBuf = await fetchLogoUrl(`https://app.hyperliquid.xyz/coins/${assetUpper}.svg`);
-          } catch(e) {
-             // Fallback for pre-launch or special tokens like GOLD -> xyz:GOLD
-             svgBuf = await fetchLogoUrl(`https://app.hyperliquid.xyz/coins/xyz:${assetUpper}.svg`);
-          }
-          
-          assetLogo = await loadImage(svgBuf);
-       } catch(e) {
-          // fallback to standard logo if fetch fails silently
-          this.logger.warn(`Could not load Hyperliquid SVG for asset ${opts.asset}`);
-       }
+      try {
+        const fetchLogoUrl = (url: string) => new Promise<Buffer>((resolve, reject) => {
+          const https = require('https');
+          https.get(url, (res: any) => {
+            if (res.statusCode !== 200) return reject(new Error(`Not found: ${res.statusCode}`));
+            let data = '';
+            res.on('data', (c: any) => data += c);
+            res.on('end', () => {
+              let svg = data;
+              if (!svg.includes('<svg')) return reject(new Error('HTML fallback returned, not an SVG'));
+              if (!svg.includes('width=')) svg = svg.replace('<svg', '<svg width="200" height="200"');
+              resolve(Buffer.from(svg));
+            });
+          }).on('error', reject);
+        });
+
+        let svgBuf: Buffer;
+        const assetUpper = opts.asset.toUpperCase();
+        try {
+          svgBuf = await fetchLogoUrl(`https://app.hyperliquid.xyz/coins/${assetUpper}.svg`);
+        } catch (e) {
+          svgBuf = await fetchLogoUrl(`https://app.hyperliquid.xyz/coins/xyz:${assetUpper}.svg`);
+        }
+
+        assetLogo = await loadImage(svgBuf);
+      } catch (e) {
+        this.logger.warn(`Could not load Hyperliquid SVG for asset ${opts.asset}`);
+      }
     }
 
     try {
-        await this.drawNewClosedPositionCard(ctx, { ...opts, width: w, height: h, avatarImage, assetLogo });
-    } catch(e) {
-        this.logger.error("Failed to render new closed position card", e);
+      await this.drawNewClosedPositionCard(ctx, { ...opts, width: w, height: h, avatarImage, assetLogo });
+    } catch (e) {
+      this.logger.error('Failed to render new closed position card', e);
     }
-    
+
     return this.toBuffer(canvas);
   }
 
