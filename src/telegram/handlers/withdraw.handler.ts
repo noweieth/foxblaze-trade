@@ -87,8 +87,9 @@ export class WithdrawHandler {
         withdrawable = parseFloat(state.withdrawable || '0');
       }
 
+      const maxToReceive = Math.max(0, withdrawable - 1.0);
       const kb = new InlineKeyboard()
-        .text(`💰 Withdraw ALL ($${withdrawable.toFixed(2)})`, "withdraw_amount_max").row()
+        .text(`💰 Withdraw ALL (Get $${maxToReceive.toFixed(2)})`, "withdraw_amount_max").row()
         .text("❌ Cancel", "nav_balance");
 
       await ctx.reply(
@@ -131,14 +132,14 @@ export class WithdrawHandler {
         const state = await this.hlInfo.getAccountState(wallet.address);
         const withdrawable = parseFloat(state.withdrawable || '0');
         
-        // Let's assume Max = withdrawable. Hyperliquid automatically deducts $1 from the withdrawn amount or account balance.
-        // Wait, Hyperliquid withdraw requires amount > 0.
         if (withdrawable <= 1.0) {
            await ctx.reply(`❌ Available balance is too low after the $1 fee.`);
            return true;
         }
 
-        await this.processWithdrawal(ctx, telegramId, session.data.withdrawAddress!, withdrawable);
+        // To withdraw all, we must ask for `withdrawable - 1` because Hyperliquid deducts the $1 fee ON TOP of the requested amount.
+        const amountToRequest = withdrawable - 1.0;
+        await this.processWithdrawal(ctx, telegramId, session.data.withdrawAddress!, amountToRequest);
       }
       return true;
     }
@@ -161,8 +162,9 @@ export class WithdrawHandler {
       const state = await this.hlInfo.getAccountState(wallet.address);
       const withdrawable = parseFloat(state.withdrawable || '0');
       
-      if (amount > withdrawable) {
-         await ctx.api.editMessageText(ctx.chat!.id, pendingMsg.message_id, `❌ <b>Failed.</b> You tried to withdraw $${amount}, but only $${withdrawable} is available.`, { parse_mode: 'HTML' });
+      // Hyperliquid requires: amount + $1 fee <= withdrawable
+      if (amount + 1.0 > withdrawable) {
+         await ctx.api.editMessageText(ctx.chat!.id, pendingMsg.message_id, `❌ <b>Failed.</b> You tried to withdraw $${amount}, but you need $${amount + 1.0} to cover the $1 bridge fee. You only have $${withdrawable} available.`, { parse_mode: 'HTML' });
          return;
       }
 
@@ -198,7 +200,13 @@ export class WithdrawHandler {
       }
     } catch (error: any) {
       this.logger.error(`Withdraw execution error: ${error.message}`);
-      await ctx.api.editMessageText(ctx.chat!.id, pendingMsg.message_id, `❌ <b>System Error:</b> Failed to execute withdrawal. Please try again.`, { parse_mode: 'HTML' });
+      
+      let errMsg = error.message;
+      if (errMsg.includes('Insufficient balance')) {
+          errMsg = "Insufficient balance. Remember to leave $1.00 for the Hyperliquid L1 bridge fee.";
+      }
+      
+      await ctx.api.editMessageText(ctx.chat!.id, pendingMsg.message_id, `❌ <b>System Error:</b> ${errMsg}`, { parse_mode: 'HTML' });
     }
   }
 
