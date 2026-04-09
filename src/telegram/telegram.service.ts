@@ -67,10 +67,14 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         { command: 'help', description: 'Commands & guides' },
       ];
 
+      const publicBotCommands = botCommands.filter(c => ['start', 'help', 'chart', 'pnl'].includes(c.command));
+
       await this.bot.api.setMyCommands(botCommands);
       await this.bot.api.setMyCommands(botCommands, { scope: { type: 'all_private_chats' } });
+      await this.bot.api.setMyCommands(publicBotCommands, { scope: { type: 'all_group_chats' } });
+      await this.bot.api.setMyCommands(publicBotCommands, { scope: { type: 'all_chat_administrators' } });
       await this.bot.api.setMyDescription('FoxBlaze Trading Bot - The next-gen autonomous Hyperliquid trader.\\n\\n📖 Read the manual: https://docs.foxblaze.bot/en').catch(() => {});
-      this.logger.log('Successfully set Telegram Bot Menu Commands (Default & Private Scopes)');
+      this.logger.log('Successfully set Telegram Bot Menu Commands (Default, Private & Group Scopes)');
     } catch (e: any) {
       this.logger.error(`Error setting commands: ${e.message}`);
     }
