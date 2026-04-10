@@ -192,19 +192,30 @@
             <div id="page-wallets" class="page hidden">
                 <div class="panel">
                     <div class="page-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                        <h2>User Management</h2>
-                        <input type="text" id="user-search" class="search-input" placeholder="Search username..." style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-base); color: var(--text-primary); width: 250px;">
+                        <div>
+                            <h2>User & Wallet Management</h2>
+                            <p style="color:var(--text-muted); font-size: 0.85rem; margin-top: 4px;">Manage users, roles, and wallet access</p>
+                        </div>
+                        <div style="display:flex; gap:10px; align-items:center;">
+                            <select id="user-role-filter" class="setting-input" style="padding:7px 10px; font-size:12px; width:120px;">
+                                <option value="">All Roles</option>
+                                <option value="kol">KOL Only</option>
+                                <option value="premium">Premium Only</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                            <input type="text" id="user-search" class="search-input" placeholder="🔍 Search username..." style="padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-base); color: var(--text-primary); width: 220px; font-size:12px;">
+                        </div>
                     </div>
                     <table class="data-table" id="wallets-table">
                         <thead>
                             <tr>
-                                <th>User</th>
-                                <th>Telegram ID</th>
-                                <th>Wallet</th>
-                                <th>Status</th>
-                                <th>Trades</th>
-                                <th>Joined</th>
-                                <th>Actions</th>
+                                <th style="width:22%">User</th>
+                                <th style="width:14%">Telegram ID</th>
+                                <th style="width:16%">Wallet</th>
+                                <th style="width:18%">Roles</th>
+                                <th style="width:8%">Trades</th>
+                                <th style="width:12%">Joined</th>
+                                <th style="width:10%" class="text-right">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="wallets-tbody">

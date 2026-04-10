@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { Bot, Context, InlineKeyboard } from 'grammy';
 import { UserService } from '../../user/user.service';
 import { WalletService } from '../../wallet/wallet.service';
+import { TradeHandler } from './trade.handler';
 
 @Injectable()
 export class StartHandler {
@@ -10,6 +11,8 @@ export class StartHandler {
   constructor(
     private readonly userService: UserService,
     private readonly walletService: WalletService,
+    @Inject(forwardRef(() => TradeHandler))
+    private readonly tradeHandler: TradeHandler,
   ) {}
 
   register(bot: Bot) {
@@ -20,6 +23,18 @@ export class StartHandler {
       const username = ctx.from.username || undefined;
       const firstName = ctx.from.first_name;
 
+      // Parse deep link payload: /start long_BTC or /start short_ETH
+      const rawText = ctx.message?.text || '';
+      const deepLinkPayload = rawText.split(' ')[1]?.trim();
+      let tradeAction: { side: 'long' | 'short'; asset: string } | null = null;
+
+      if (deepLinkPayload) {
+        const match = deepLinkPayload.match(/^(long|short)_(.+)$/i);
+        if (match) {
+          tradeAction = { side: match[1].toLowerCase() as 'long' | 'short', asset: match[2] };
+        }
+      }
+
       // 1. Database User Lookup
       const user = await this.userService.findOrCreate(telegramId, username, firstName);
       const existingWallet = await this.walletService.getWalletByUserId(user.id);
@@ -27,7 +42,7 @@ export class StartHandler {
       try {
         if (!existingWallet) {
            await ctx.reply(`🦊 Welcome <b>${firstName}</b>!\nInitializing FoxBlaze trading wallet... Please wait.`, { parse_mode: 'HTML' });
-        } else {
+        } else if (!tradeAction) {
            await ctx.reply(`🦊 Welcome back <b>${firstName}</b>!\nLoading your FoxBlaze trading wallet...`, { parse_mode: 'HTML' });
         }
         
@@ -36,6 +51,12 @@ export class StartHandler {
 
         if (!wallet) {
           await ctx.reply(`❌ Wallet generation failed. Please try again.`);
+          return;
+        }
+
+        // 3. If deep link contains trade action, launch fast-track trade directly
+        if (tradeAction) {
+          await this.tradeHandler.fastTrackTrade(ctx, telegramId, tradeAction.side, tradeAction.asset);
           return;
         }
 

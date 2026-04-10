@@ -16,6 +16,7 @@ model User {
   firstName  String?
   isActive   Boolean  @default(true)
   isPremium  Boolean  @default(false)
+  isKol      Boolean  @default(false)
   premiumAt  DateTime?
   autoCopy   Boolean  @default(true)
   copySize   Float    @default(10)

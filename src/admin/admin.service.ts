@@ -316,6 +316,8 @@ export class AdminService {
         username: u.username,
         firstName: u.firstName,
         isActive: u.isActive,
+        isPremium: (u as any).isPremium || false,
+        isKol: (u as any).isKol || false,
         walletAddress: u.wallet?.address || null,
         isHlRegistered: u.wallet?.isHlRegistered || false,
         tradeCount: u._count.trades,
@@ -403,6 +405,18 @@ export class AdminService {
       } as any
     });
     return { status: 'success', isPremium: (updated as any).isPremium };
+  }
+
+  async toggleUserKol(userId: number) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) return { status: 'error', message: 'User not found' };
+    
+    const newIsKol = !(user as any).isKol;
+    const updated = await this.prisma.user.update({
+      where: { id: userId },
+      data: { isKol: newIsKol } as any
+    });
+    return { status: 'success', isKol: (updated as any).isKol };
   }
 
   // --- SIGNALS SECTION --- //

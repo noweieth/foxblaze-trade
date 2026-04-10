@@ -16,6 +16,7 @@ import { PnlHandler } from './handlers/pnl.handler';
 import { TestHandler } from './handlers/test.handler';
 import { PremiumHandler } from './handlers/premium.handler';
 import { WithdrawHandler } from './handlers/withdraw.handler';
+import { KolHandler } from './handlers/kol.handler';
 
 @Injectable()
 export class TelegramService implements OnModuleInit, OnModuleDestroy {
@@ -38,6 +39,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     private readonly testHandler: TestHandler,
     private readonly premiumHandler: PremiumHandler,
     private readonly withdrawHandler: WithdrawHandler,
+    private readonly kolHandler: KolHandler,
   ) {
     const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
     if (!token) {
@@ -73,7 +75,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       await this.bot.api.setMyCommands(botCommands, { scope: { type: 'all_private_chats' } });
       await this.bot.api.setMyCommands(publicBotCommands, { scope: { type: 'all_group_chats' } });
       await this.bot.api.setMyCommands(publicBotCommands, { scope: { type: 'all_chat_administrators' } });
-      await this.bot.api.setMyDescription('FoxBlaze Trading Bot - The next-gen autonomous Hyperliquid trader.\\n\\n📖 Read the manual: https://docs.foxblaze.bot/en').catch(() => {});
+      await this.bot.api.setMyDescription('FoxBlaze Trading Bot - The next-gen autonomous Hyperliquid trader.\n\n📖 Read the manual: https://docs.foxblaze.bot/en').catch(() => {});
       this.logger.log('Successfully set Telegram Bot Menu Commands (Default, Private & Group Scopes)');
     } catch (e: any) {
       this.logger.error(`Error setting commands: ${e.message}`);
@@ -157,6 +159,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     this.testHandler.register(this.bot);
     this.premiumHandler.register(this.bot);
     this.withdrawHandler.register(this.bot);
+    this.kolHandler.register(this.bot);
 
     // 2. FSM Fallback Message Interceptor
     this.bot.on('message:text', async (ctx: Context) => {

@@ -284,33 +284,51 @@ function setupActionListeners() {
 let adminUsersState = {
     page: 1,
     search: '',
+    roleFilter: '',
     totalPages: 1
 };
 
 function initWalletsPage() {
-    fetchUsers(1, '');
+    fetchUsers(1, '', '');
     
     const searchInput = document.getElementById('user-search');
     let debounceTimer;
     searchInput.addEventListener('input', (e) => {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
-            fetchUsers(1, e.target.value);
+            fetchUsers(1, e.target.value, adminUsersState.roleFilter);
         }, 500);
+    });
+
+    const roleFilter = document.getElementById('user-role-filter');
+    roleFilter.addEventListener('change', (e) => {
+        fetchUsers(1, adminUsersState.search, e.target.value);
     });
 }
 
-async function fetchUsers(page, search) {
+async function fetchUsers(page, search, roleFilter) {
     try {
         adminUsersState.page = page;
         adminUsersState.search = search;
+        adminUsersState.roleFilter = roleFilter || '';
         
         const res = await fetch(`/api/admin/users?page=${page}&search=${encodeURIComponent(search)}`);
         const result = await res.json();
         
         if (result.status === 'success') {
+            let users = result.data;
+
+            // Client-side role filter
+            if (adminUsersState.roleFilter === 'kol') {
+                users = users.filter(u => u.isKol);
+            } else if (adminUsersState.roleFilter === 'premium') {
+                users = users.filter(u => u.isPremium);
+            } else if (adminUsersState.roleFilter === 'inactive') {
+                users = users.filter(u => !u.isActive);
+            }
+
             adminUsersState.totalPages = result.pagination.totalPages;
-            renderUsersTable(result.data);
+            renderUsersTable(users);
             renderPagination();
         }
     } catch(e) {
@@ -323,27 +341,43 @@ function renderUsersTable(users) {
     tbody.innerHTML = '';
     
     if (users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">No users found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:40px 0">No users found.</td></tr>';
         return;
     }
     
     users.forEach(u => {
-        const address = u.walletAddress ? `${u.walletAddress.slice(0,6)}...${u.walletAddress.slice(-4)}` : 'N/A';
-        const statusClass = u.isActive ? 'pnl-green' : 'pnl-muted';
+        const address = u.walletAddress ? `${u.walletAddress.slice(0,6)}...${u.walletAddress.slice(-4)}` : '—';
         const hlClass = u.isHlRegistered ? 'pnl-green' : 'pnl-muted';
+        
+        // Build role badges
+        let badges = '';
+        if (u.isKol) badges += '<span class="badge-kol">KOL</span> ';
+        if (u.isPremium) badges += '<span class="badge-premium">VIP</span> ';
+        if (u.isActive) {
+            badges += '<span class="badge-active">Active</span>';
+        } else {
+            badges += '<span class="badge-inactive">Inactive</span>';
+        }
+        
+        const displayName = u.username ? `@${u.username}` : u.firstName || 'User';
         
         const tr = document.createElement('tr');
         tr.style.cursor = 'pointer';
         tr.onclick = () => showUserDetail(u.id);
         
         tr.innerHTML = `
-            <td>${u.username ? '@'+u.username : u.firstName || 'User'}</td>
-            <td>${u.telegramId}</td>
-            <td><span class="${hlClass}">${address}</span></td>
-            <td><span class="${statusClass}">${u.isActive ? 'Active' : 'Inactive'}</span></td>
-            <td>${u.tradeCount}</td>
-            <td>${new Date(u.createdAt).toLocaleDateString()}</td>
-            <td><button class="btn" style="padding:4px 8px; font-size:12px;" onclick="event.stopPropagation(); showUserDetail(${u.id})">🔍 View</button></td>
+            <td>
+                <div style="display:flex; flex-direction:column; gap:2px;">
+                    <span style="font-weight:500; font-family:var(--font-sans); color:var(--text-primary);">${displayName}</span>
+                    <span style="font-size:11px; color:var(--text-muted);">${u.firstName || ''}</span>
+                </div>
+            </td>
+            <td style="font-size:11px;">${u.telegramId}</td>
+            <td><span class="${hlClass}" style="font-size:11px;">${address}</span></td>
+            <td>${badges}</td>
+            <td style="text-align:center;">${u.tradeCount}</td>
+            <td style="font-size:11px;">${new Date(u.createdAt).toLocaleDateString()}</td>
+            <td class="text-right"><button class="btn" style="padding:4px 10px; font-size:11px;" onclick="event.stopPropagation(); showUserDetail(${u.id})">View</button></td>
         `;
         tbody.appendChild(tr);
     });
@@ -359,7 +393,7 @@ function renderPagination() {
         const btn = document.createElement('button');
         btn.innerText = i;
         if (i === adminUsersState.page) btn.classList.add('active');
-        btn.onclick = () => fetchUsers(i, adminUsersState.search);
+        btn.onclick = () => fetchUsers(i, adminUsersState.search, adminUsersState.roleFilter);
         cont.appendChild(btn);
     }
 }
@@ -396,6 +430,8 @@ function renderDetailPanel(user, balance) {
     document.getElementById('detail-username').innerText = user.username ? `@${user.username}` : user.firstName;
     
     const content = document.getElementById('detail-content');
+    const isKol = user.isKol || false;
+    const isPremium = user.isPremium || false;
     
     content.innerHTML = `
         <div class="detail-card">
@@ -403,13 +439,15 @@ function renderDetailPanel(user, balance) {
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px; font-size:14px;">
                 <span class="pnl-muted">ID:</span> <span>${user.telegramId}</span>
                 <span class="pnl-muted">Status:</span> <span class="${user.isActive?'pnl-green':'pnl-red'}">${user.isActive?'Active':'Disabled'}</span>
-                <span class="pnl-muted">VIP Premium:</span> <span class="${user.isPremium?'pnl-green':'pnl-muted'}">${user.isPremium?'⭐ YES':'NO'}</span>
+                <span class="pnl-muted">Premium:</span> <span class="${isPremium?'pnl-green':'pnl-muted'}">${isPremium?'⭐ YES':'NO'}</span>
+                <span class="pnl-muted">KOL:</span> <span class="${isKol?'pnl-green':'pnl-muted'}">${isKol?'🔥 YES':'NO'}</span>
                 <span class="pnl-muted">Joined:</span> <span>${new Date(user.createdAt).toLocaleString()}</span>
             </div>
-            <div style="margin-top:15px; display:flex; gap:10px;">
-                <button class="btn btn-confirm" style="flex:1" onclick="handleSendMessage(${user.id})">✉️ Msg</button>
-                <button class="btn ${user.isPremium?'btn-cancel':'btn-confirm'}" style="flex:1; ${!user.isPremium?'background:var(--green-pnl); color:black':''}" onclick="handleTogglePremium(${user.id})">${user.isPremium ? '❌ Revoke VIP' : '⭐ Grant VIP'}</button>
-                <button class="btn btn-cancel" style="flex:1" onclick="handleToggleActive(${user.id})">${user.isActive ? 'Disable' : 'Enable'}</button>
+            <div style="margin-top:15px; display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn btn-confirm" style="flex:1; min-width:80px;" onclick="handleSendMessage(${user.id})">✉️ Msg</button>
+                <button class="btn ${isPremium?'btn-cancel':'btn-confirm'}" style="flex:1; min-width:80px; ${!isPremium?'background:var(--green-pnl); color:black':''}" onclick="handleTogglePremium(${user.id})">${isPremium ? '❌ Revoke VIP' : '⭐ Grant VIP'}</button>
+                <button class="btn ${isKol?'btn-cancel':'btn-confirm'}" style="flex:1; min-width:80px; ${!isKol?'background:#f59e0b; color:black':''}" onclick="handleToggleKol(${user.id})">${isKol ? '❌ Revoke KOL' : '🔥 Grant KOL'}</button>
+                <button class="btn btn-cancel" style="flex:1; min-width:80px;" onclick="handleToggleActive(${user.id})">${user.isActive ? 'Disable' : 'Enable'}</button>
             </div>
         </div>
 
@@ -461,8 +499,8 @@ window.handleToggleActive = async function(userId) {
             const data = await res.json();
             if(data.status === 'success') {
                 showToast(`User is now ${data.isActive ? 'Active' : 'Inactive'}`, 'success');
-                showUserDetail(userId); // Refresh panel
-                fetchUsers(adminUsersState.page, adminUsersState.search); // Refresh table
+                showUserDetail(userId);
+                fetchUsers(adminUsersState.page, adminUsersState.search, adminUsersState.roleFilter);
             }
         } catch(e) { showToast('Error', 'error'); }
     });
@@ -476,10 +514,26 @@ window.handleTogglePremium = async function(userId) {
             if(data.status === 'success') {
                 showToast(`VIP Premium ${data.isPremium ? 'GRANTED' : 'REVOKED'}`, 'success');
                 showUserDetail(userId);
+                fetchUsers(adminUsersState.page, adminUsersState.search, adminUsersState.roleFilter);
             }
         } catch(e) { showToast('Error', 'error'); }
     });
 };
+
+window.handleToggleKol = async function(userId) {
+    showModal("Confirm KOL Status", "Grant or Revoke KOL role for this user? KOL users can generate fake PnL cards.", false, async () => {
+        try {
+            const res = await fetch(`/api/admin/users/${userId}/kol`, { method: 'POST' });
+            const data = await res.json();
+            if(data.status === 'success') {
+                showToast(`KOL ${data.isKol ? 'GRANTED 🔥' : 'REVOKED'}`, 'success');
+                showUserDetail(userId);
+                fetchUsers(adminUsersState.page, adminUsersState.search, adminUsersState.roleFilter);
+            }
+        } catch(e) { showToast('Error', 'error'); }
+    });
+};
+
 
 // ==========================================
 // Monitor Page Logic

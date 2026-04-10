@@ -24,6 +24,7 @@ import { CardRenderer } from './card-renderer.service';
 import { TestHandler } from './handlers/test.handler';
 import { PremiumHandler } from './handlers/premium.handler';
 import { WithdrawHandler } from './handlers/withdraw.handler';
+import { KolHandler } from './handlers/kol.handler';
 
 @Module({
   imports: [ConfigModule, UserModule, WalletModule, HyperliquidModule, SessionModule, TradeModule, PrismaModule, DepositModule],
@@ -44,6 +45,7 @@ import { WithdrawHandler } from './handlers/withdraw.handler';
     TestHandler,
     PremiumHandler,
     WithdrawHandler,
+    KolHandler,
   ],
   exports: [TelegramService],
 })

@@ -2,17 +2,25 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Bot, Context, InputFile, InlineKeyboard } from 'grammy';
 import { HlInfoService } from '../../hyperliquid/hl-info.service';
 import { CardRenderer, BRAND } from '../card-renderer.service';
+import { UserService } from '../../user/user.service';
+import { WalletService } from '../../wallet/wallet.service';
 
 @Injectable()
 export class ChartHandler {
   private readonly logger = new Logger(ChartHandler.name);
+  private botUsername: string = '';
 
   constructor(
     private readonly hlInfo: HlInfoService,
     private readonly cardRenderer: CardRenderer,
+    private readonly userService: UserService,
+    private readonly walletService: WalletService,
   ) {}
 
   register(bot: Bot) {
+    // Cache bot username for deep link generation in group chats
+    bot.api.getMe().then(me => { this.botUsername = me.username; }).catch(() => {});
+
     bot.command('chart', async (ctx: Context) => {
        const match = ctx.message?.text?.split(' ');
        if (!match || match.length < 2) {
@@ -267,13 +275,108 @@ export class ChartHandler {
         ctx2d.fillText(curPx.toFixed(1), chartRight + 2 + tagW / 2, curY);
       }
 
+      // ─── Position overlay (entry, TP, SL lines) — private chat only ───
+      const isPrivate = ctx.chat?.type === 'private';
+      if (isPrivate && ctx.from) {
+        try {
+          const telegramId = BigInt(ctx.from.id);
+          const user = await this.userService.findByTelegramId(telegramId);
+          if (user) {
+            const wallet = await this.walletService.getWalletByUserId(user.id);
+            if (wallet && wallet.isHlRegistered) {
+              const [positions, openOrders] = await Promise.all([
+                this.hlInfo.getPositions(wallet.address),
+                this.hlInfo.getOpenOrders(wallet.address),
+              ]);
+
+              // Match position by HL coin name (ticker). For HIP-3: chart ticker = "WTIOIL", position.asset = "xyz:CL"
+              const pos = positions.find(p => {
+                if (parseFloat(p.size) === 0) return false;
+                return p.asset === ticker || p.asset.toUpperCase() === ticker.toUpperCase();
+              });
+
+              if (pos) {
+                const entryPx = parseFloat(pos.entryPrice);
+                const isLong = pos.side === 'long';
+                const sideLabel = isLong ? 'LONG' : 'SHORT';
+                const sideColor = isLong ? BRAND.profitGreen : BRAND.lossRed;
+
+                // Helper: draw position line with tag
+                const drawPosLine = (price: number, label: string, color: string) => {
+                  const y = getY(price);
+                  // Skip if price is outside visible chart range
+                  if (y < chartTop - 5 || y > chartBottom + 5) return;
+
+                  ctx2d.beginPath();
+                  ctx2d.setLineDash([6, 3]);
+                  ctx2d.strokeStyle = color;
+                  ctx2d.lineWidth = 1.2;
+                  ctx2d.moveTo(chartLeft, y);
+                  ctx2d.lineTo(chartRight, y);
+                  ctx2d.stroke();
+                  ctx2d.setLineDash([]);
+
+                  // Tag on the left side
+                  ctx2d.font = 'bold 8px "Arial"';
+                  const tagText = `${label} $${price.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 2 })}`;
+                  const tagW = ctx2d.measureText(tagText).width + 10;
+                  const tagH = 14;
+                  const tagX = chartLeft;
+                  const tagY = y - tagH / 2;
+
+                  // Tag background
+                  ctx2d.fillStyle = BRAND.bgDarker;
+                  ctx2d.fillRect(tagX, tagY, tagW, tagH);
+                  ctx2d.strokeStyle = color;
+                  ctx2d.lineWidth = 1;
+                  ctx2d.strokeRect(tagX, tagY, tagW, tagH);
+
+                  // Tag text
+                  ctx2d.fillStyle = color;
+                  ctx2d.textAlign = 'center';
+                  ctx2d.textBaseline = 'middle';
+                  ctx2d.fillText(tagText, tagX + tagW / 2, y);
+                };
+
+                // Draw entry price line
+                drawPosLine(entryPx, sideLabel, sideColor);
+
+                // Find TP/SL orders for this asset
+                const assetOrders = openOrders.filter((o: any) => o.asset === pos.asset);
+                const tpOrder = assetOrders.find((o: any) => o.orderType === 'Take Profit');
+                const slOrder = assetOrders.find((o: any) => o.orderType === 'Stop Loss');
+
+                if (tpOrder) {
+                  drawPosLine(parseFloat(tpOrder.price), 'TP', BRAND.profitGreen);
+                }
+                if (slOrder) {
+                  drawPosLine(parseFloat(slOrder.price), 'SL', BRAND.lossRed);
+                }
+              }
+            }
+          }
+        } catch (e: any) {
+          // Silently skip — position overlay is non-critical
+          this.logger.debug(`Position overlay skipped: ${e.message}`);
+        }
+      }
+
       const buffer = this.cardRenderer.toBuffer(canvas);
 
       // ─── Keyboard ───
       const kb = new InlineKeyboard();
       kb.text('1m', `chart_${displayTicker}_1m`).text('5m', `chart_${displayTicker}_5m`).text('15m', `chart_${displayTicker}_15m`)
         .text('1h', `chart_${displayTicker}_1h`).text('4h', `chart_${displayTicker}_4h`).text('1d', `chart_${displayTicker}_1d`).row();
-      kb.text(`⬇️ Short ${displayTicker}`, `trade_short_${displayTicker}`).text(`⬆️ Long ${displayTicker}`, `trade_long_${displayTicker}`);
+
+      // In group chats, use URL deep links to open DM instead of callback buttons
+      const isGroup = ctx.chat?.type === 'group' || ctx.chat?.type === 'supergroup';
+      if (isGroup && this.botUsername) {
+        kb.url(`⬇️ Short ${displayTicker}`, `https://t.me/${this.botUsername}?start=short_${displayTicker}`)
+          .url(`⬆️ Long ${displayTicker}`, `https://t.me/${this.botUsername}?start=long_${displayTicker}`);
+      } else {
+        kb.text(`⬇️ Short ${displayTicker}`, `trade_short_${displayTicker}`)
+          .text(`⬆️ Long ${displayTicker}`, `trade_long_${displayTicker}`);
+      }
 
       if (isEdit) {
          await ctx.editMessageMedia(

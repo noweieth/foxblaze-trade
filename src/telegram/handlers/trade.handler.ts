@@ -42,16 +42,26 @@ export class TradeHandler {
   }
 
   async fastTrackTrade(ctx: Context, telegramId: bigint, side: 'long' | 'short', assetName: string) {
-    const assetMeta = await this.hlInfo.findAsset(assetName);
+    const fuzzyResult = await this.hlInfo.findAssetFuzzy(assetName);
+    let assetMeta = fuzzyResult.asset;
     
     if (!assetMeta) {
-      await ctx.reply(`❌ Could not find asset ${assetName} for fast-track!`);
+      const suggStr = fuzzyResult.suggestions.length > 0 ? ` Did you mean: ${fuzzyResult.suggestions.join(', ')}?` : '';
+      await ctx.reply(`❌ Could not find asset ${assetName} for fast-track!${suggStr}`);
       return;
     }
 
+    // HIP-3 aliases return placeholder assetId=-1, resolve real metadata from universe
+    if (assetMeta.assetId === -1) {
+      const resolved = await this.hlInfo.findAsset(assetMeta.name);
+      if (resolved) assetMeta = resolved;
+    }
+
+    const displayName = fuzzyResult.displayName || assetMeta.name;
+
     const data = {
        side,
-       asset: assetMeta.name,
+       asset: displayName,
        assetId: assetMeta.assetId,
        maxLeverage: assetMeta.maxLeverage,
        sizeUsdc: 10,       // Default Size
@@ -109,14 +119,22 @@ export class TradeHandler {
     try {
       if (state === 'WAITING_ASSET_INPUT') {
           const assetName = text.trim().toUpperCase();
-          const assetMeta = await this.hlInfo.findAsset(assetName);
+          const fuzzyResult = await this.hlInfo.findAssetFuzzy(assetName);
+          let assetMeta = fuzzyResult.asset;
           
           if (!assetMeta) {
-            await ctx.reply(`❌ Asset <b>${assetName}</b> not found.\nEnter a valid ticker:`, { parse_mode: 'HTML' });
+            const suggStr = fuzzyResult.suggestions.length > 0 ? `\nDid you mean: ${fuzzyResult.suggestions.map(s => `<code>${s}</code>`).join(', ')}?` : '';
+            await ctx.reply(`❌ Asset <b>${assetName}</b> not found.${suggStr}\nEnter a valid ticker:`, { parse_mode: 'HTML' });
             return;
           }
 
-          data.asset = assetMeta.name;
+          // HIP-3 aliases return placeholder assetId=-1, resolve real metadata
+          if (assetMeta.assetId === -1) {
+            const resolved = await this.hlInfo.findAsset(assetMeta.name);
+            if (resolved) assetMeta = resolved;
+          }
+
+          data.asset = fuzzyResult.displayName || assetMeta.name;
           data.assetId = assetMeta.assetId;
           data.maxLeverage = assetMeta.maxLeverage;
           data.sizeUsdc = 10;

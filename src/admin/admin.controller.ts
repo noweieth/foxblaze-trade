@@ -68,6 +68,11 @@ export class AdminController {
     return this.adminService.toggleUserPremium(parseInt(id));
   }
 
+  @Post('users/:id/kol')
+  async toggleUserKol(@Param('id') id: string) {
+    return this.adminService.toggleUserKol(parseInt(id));
+  }
+
   // --- SIGNALS ENDPOINTS --- //
 
   @Get('signals')
