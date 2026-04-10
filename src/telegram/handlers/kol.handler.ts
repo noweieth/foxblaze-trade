@@ -20,7 +20,7 @@ export class KolHandler {
 
   /**
    * /fakepnl BTC long 10x 95000 98000 500
-   * Format: /fakepnl <asset> <side> <leverage>x <entry> <exit> <size_usd>
+   * /fakepnl BTC long 10x 95000 98000 500 %   ← show ROE% only
    * Only available for KOL users (isKol = true)
    */
   private async handleFakePnl(ctx: Context) {
@@ -36,13 +36,13 @@ export class KolHandler {
 
     const text = ctx.message?.text || '';
     const parts = text.split(/\s+/);
-    // parts: ["/fakepnl", "BTC", "long", "10x", "95000", "98000", "500"]
 
     if (parts.length < 7) {
       return ctx.reply(
         '📝 <b>Fake PnL Generator</b>\n\n' +
-        'Usage:\n<code>/fakepnl &lt;asset&gt; &lt;side&gt; &lt;leverage&gt;x &lt;entry&gt; &lt;exit&gt; &lt;size_usd&gt;</code>\n\n' +
-        'Example:\n<code>/fakepnl BTC long 10x 95000 98000 500</code>\n<code>/fakepnl ETH short 20x 3800 3600 200</code>\n<code>/fakepnl WTIOIL long 5x 95 97 100</code>',
+        'Usage:\n<code>/fakepnl &lt;asset&gt; &lt;side&gt; &lt;leverage&gt;x &lt;entry&gt; &lt;exit&gt; &lt;size_usd&gt; [%]</code>\n\n' +
+        'Add <code>%</code> at the end to show ROE% only (hide dollar amount).\n\n' +
+        'Example:\n<code>/fakepnl BTC long 10x 95000 98000 500</code>\n<code>/fakepnl BTC long 10x 95000 98000 500 %</code>\n<code>/fakepnl ETH short 20x 3800 3600 200</code>',
         { parse_mode: 'HTML' }
       );
     }
@@ -53,6 +53,7 @@ export class KolHandler {
     const entryStr = parts[4];
     const exitStr = parts[5];
     const sizeStr = parts[6];
+    const hideProfit = parts[7] === '%';
 
     // Validate side
     if (sideInput !== 'long' && sideInput !== 'short') {
@@ -97,21 +98,18 @@ export class KolHandler {
           size: sizeUsd,
           pnl,
           roe,
-          hideProfit: false,
+          hideProfit,
         }
       );
 
       await ctx.api.deleteMessage(ctx.chat!.id, waitMsg.message_id);
 
-      await ctx.replyWithPhoto(new InputFile(buffer), {
-        caption:
-          `🔥 <b>${displayName}/USDT Perpetual</b>\n` +
-          `${side === 'long' ? '🟢' : '🔴'} <b>${side.toUpperCase()}</b> ${leverage}x\n\n` +
-          `Entry: <code>$${entry}</code>\n` +
-          `Exit: <code>$${exit}</code>\n` +
-          `PnL: <b>${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</b> (${roe >= 0 ? '+' : ''}${(roe * 100).toFixed(2)}%)`,
-        parse_mode: 'HTML',
-      });
+      const roeStr = `${roe >= 0 ? '+' : ''}${(roe * 100).toFixed(2)}%`;
+      const caption = hideProfit
+        ? `🔥 <b>${displayName}/USDT Perpetual</b>\n${side === 'long' ? '🟢' : '🔴'} <b>${side.toUpperCase()}</b> ${leverage}x\nROE: <b>${roeStr}</b>`
+        : `🔥 <b>${displayName}/USDT Perpetual</b>\n${side === 'long' ? '🟢' : '🔴'} <b>${side.toUpperCase()}</b> ${leverage}x\n\nEntry: <code>$${entry}</code>\nExit: <code>$${exit}</code>\nPnL: <b>${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</b> (${roeStr})`;
+
+      await ctx.replyWithPhoto(new InputFile(buffer), { caption, parse_mode: 'HTML' });
     } catch (e: any) {
       this.logger.error(`FakePnl error: ${e.message}`);
       await ctx.api.editMessageText(ctx.chat!.id, waitMsg.message_id, '❌ Error generating PnL card.');
